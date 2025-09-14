@@ -2,6 +2,10 @@
 
 A third party desktop client for Arctic Spa brand hot tubs. Uses a reverse-engineered TCP/protobuf interface for controlling and viewing the status of your hot tub temperature, jets, lights, and much more.
 
+## Overview
+
+Arctic Spa hot tubs communicate over TCP using protobuf messages. By writing a specifically crafted packet that includes a message type integer to the connection with the device, the onboard controller in the hot tub will respond with a corresponding protobuf message.
+
 ## License
 
 Licensed under the [GPL-3.0](./LICENSE) license.
