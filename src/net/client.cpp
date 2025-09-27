@@ -17,7 +17,7 @@ void printHex(const QByteArray &data) {
 }
 
 
-namespace asdc::network {
+namespace asdc::net {
 
 
 QByteArray Header::preamble() const {
@@ -82,21 +82,21 @@ Header::Header(const QByteArray &data) {
 }
 
 
-Client::Client(QObject *parent)
+NetworkClient::NetworkClient(QObject *parent)
     : QObject{parent}
 {
     m_socket = new QTcpSocket(this);
 
-    connect(m_socket, &QTcpSocket::connected, this, &Client::connected);
-    connect(m_socket, &QTcpSocket::disconnected, this, &Client::disconnected);
-    connect(m_socket, &QTcpSocket::stateChanged, this, &Client::stateChanged);
-    connect(m_socket, &QTcpSocket::errorOccurred, this, &Client::errorOccurred);
+    connect(m_socket, &QTcpSocket::connected, this, &NetworkClient::connected);
+    connect(m_socket, &QTcpSocket::disconnected, this, &NetworkClient::disconnected);
+    connect(m_socket, &QTcpSocket::stateChanged, this, &NetworkClient::stateChanged);
+    connect(m_socket, &QTcpSocket::errorOccurred, this, &NetworkClient::errorOccurred);
 }
-Client::~Client() {
+NetworkClient::~NetworkClient() {
     disconnectFromDevice();
 }
 
-bool Client::connectToDevice(const QString &host, const quint16 &port) {
+bool NetworkClient::connectToDevice(const QString &host, const quint16 &port) {
     qDebug() << "connecting to" << host << "on port" << port << "...";
 
     qDebug() << "current state:" << m_socket->state();
@@ -130,7 +130,7 @@ bool Client::connectToDevice(const QString &host, const quint16 &port) {
 
     return isConnected();
 }
-void Client::disconnectFromDevice() {
+void NetworkClient::disconnectFromDevice() {
     if (m_socket->state() == QAbstractSocket::UnconnectedState) {
         qDebug() << "already disconnected";
         return;
@@ -149,26 +149,26 @@ void Client::disconnectFromDevice() {
     qDebug() << "disconnected from host";
 }
 
-bool Client::isConnected() const {
+bool NetworkClient::isConnected() const {
     return m_socket->state() == QAbstractSocket::ConnectedState;
 }
-QString Client::host() const {
+QString NetworkClient::host() const {
     return m_host;
     // return m_socket->localAddress().toString();
 }
-quint16 Client::port() const {
+quint16 NetworkClient::port() const {
     return m_port;
     // return m_socket->localPort();
 }
 
-QAbstractSocket::SocketState Client::state() const {
+QAbstractSocket::SocketState NetworkClient::state() const {
     return m_socket->state();
 }
-QAbstractSocket::SocketError Client::error() const {
+QAbstractSocket::SocketError NetworkClient::error() const {
     return m_socket->error();
 }
 
-void Client::decodeOne(const QByteArray &data) {
+void NetworkClient::decodeOne(const QByteArray &data) {
     Header header(data);
     if (!header.isValid) {
         return;
@@ -185,7 +185,7 @@ void Client::decodeOne(const QByteArray &data) {
     qDebug() << "payload =" << payload;
     qDebug() << "remainder =" << remainder;
 }
-QByteArray Client::requestMessage(const MessageType &messageType) {
+QByteArray NetworkClient::requestMessage(const MessageType &messageType) {
     if (!isConnected()) {
         qWarning() << "socket not connected!";
         return {};
@@ -215,7 +215,7 @@ QByteArray Client::requestMessage(const MessageType &messageType) {
 
     return data;
 }
-QVector<Header> Client::parseResponse(const QByteArray &responseData) {
+QVector<Header> NetworkClient::parseResponse(const QByteArray &responseData) {
 
     QVector<Header> headers;
 
@@ -239,7 +239,7 @@ QVector<Header> Client::parseResponse(const QByteArray &responseData) {
     qDebug() << "got" << headers.length() << "messages";
     return headers;
 }
-void Client::checkSerializerError() {
+void NetworkClient::checkSerializerError() {
     if (m_serializer.lastError() != QAbstractProtobufSerializer::Error::None) {
         qWarning().nospace()
         << "Unable to deserialize ("
@@ -248,5 +248,5 @@ void Client::checkSerializerError() {
     }
 }
 
-};  // namespace asdc::network
+};  // namespace asdc::net
 

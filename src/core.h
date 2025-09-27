@@ -3,6 +3,13 @@
 
 #include <QObject>
 #include <QAbstractSocket>
+#include <QDateTime>
+
+
+// QT_BEGIN_NAMESPACE
+// class QDateTime;
+// QT_END_NAMESPACE
+
 
 #include "asdc/proto/Clock.qpb.h"
 #include "asdc/proto/Configuration.qpb.h"
@@ -17,12 +24,18 @@
 #include "asdc/proto/Settings.qpb.h"
 
 
-namespace asdc::network {
-    enum class MessageType;
-    class Client;
+namespace asdc::net {
+enum class MessageType;
+class NetworkClient;
 }
 
+namespace asdc::db {
+class DatabaseClient;
+}
+
+
 namespace asdc::core {
+
 
 class NetworkClientWorker : public QObject {
     Q_OBJECT
@@ -33,10 +46,10 @@ public:
 public slots:
     void connectClient(const QString &host);
     void disconnectClient();
-    void queueMessage(const asdc::network::MessageType &messageType);
+    void queueMessage(const asdc::net::MessageType &messageType);
 
 private:
-    asdc::network::Client *m_networkClient;
+    asdc::net::NetworkClient *m_networkClient;
 
 signals:
     void clientHostChanged(const QString &host);
@@ -81,6 +94,18 @@ class Core : public QObject
     Q_PROPERTY(asdc::proto::Peripheral messagePeripheral READ getMessagePeripheral NOTIFY messagePeripheralChanged)
     Q_PROPERTY(asdc::proto::Settings messageSettings READ getMessageSettings NOTIFY messageSettingsChanged)
 
+    Q_PROPERTY(QDateTime messageClockReceivedAt READ getMessageClockReceivedAt NOTIFY messageClockChanged)
+    Q_PROPERTY(QDateTime messageConfigurationReceivedAt READ getMessageConfigurationReceivedAt NOTIFY messageConfigurationChanged)
+    Q_PROPERTY(QDateTime messageErrorReceivedAt READ getMessageErrorReceivedAt NOTIFY messageErrorChanged)
+    Q_PROPERTY(QDateTime messageFilterReceivedAt READ getMessageFilterReceivedAt NOTIFY messageFilterChanged)
+    Q_PROPERTY(QDateTime messageInformationReceivedAt READ getMessageInformationReceivedAt NOTIFY messageInformationChanged)
+    Q_PROPERTY(QDateTime messageLiveReceivedAt READ getMessageLiveReceivedAt NOTIFY messageLiveChanged)
+    Q_PROPERTY(QDateTime messageOnzenLiveReceivedAt READ getMessageOnzenLiveReceivedAt NOTIFY messageOnzenLiveChanged)
+    Q_PROPERTY(QDateTime messageOnzenSettingsReceivedAt READ getMessageOnzenSettingsReceivedAt NOTIFY messageOnzenSettingsChanged)
+    Q_PROPERTY(QDateTime messagePeakReceivedAt READ getMessagePeakReceivedAt NOTIFY messagePeakChanged)
+    Q_PROPERTY(QDateTime messagePeripheralReceivedAt READ getMessagePeripheralReceivedAt NOTIFY messagePeripheralChanged)
+    Q_PROPERTY(QDateTime messageSettingsReceivedAt READ getMessageSettingsReceivedAt NOTIFY messageSettingsChanged)
+
 public:
     explicit Core(QObject *parent = nullptr);
     ~Core();
@@ -113,6 +138,18 @@ public:
     asdc::proto::Peripheral getMessagePeripheral() const;
     asdc::proto::Settings getMessageSettings() const;
 
+    QDateTime getMessageClockReceivedAt() const;
+    QDateTime getMessageConfigurationReceivedAt() const;
+    QDateTime getMessageErrorReceivedAt() const;
+    QDateTime getMessageFilterReceivedAt() const;
+    QDateTime getMessageInformationReceivedAt() const;
+    QDateTime getMessageLiveReceivedAt() const;
+    QDateTime getMessageOnzenLiveReceivedAt() const;
+    QDateTime getMessageOnzenSettingsReceivedAt() const;
+    QDateTime getMessagePeakReceivedAt() const;
+    QDateTime getMessagePeripheralReceivedAt() const;
+    QDateTime getMessageSettingsReceivedAt() const;
+
 private slots:
     void setMessageClock(asdc::proto::Clock message);
     void setMessageConfiguration(asdc::proto::Configuration message);
@@ -140,7 +177,9 @@ public:
     Q_INVOKABLE void refreshMessageSettings();
 
 private:
-    QThread *m_workerThread;
+    QThread *m_networkClientWorkerThread;
+
+    asdc::db::DatabaseClient *m_databaseClient;
 
     QString m_clientHost;
     QAbstractSocket::SocketState m_clientState = QAbstractSocket::SocketState::UnconnectedState;
@@ -158,10 +197,22 @@ private:
     asdc::proto::Peripheral m_messagePeripheral;
     asdc::proto::Settings m_messageSettings;
 
+    QDateTime m_messageClockReceivedAt;
+    QDateTime m_messageConfigurationReceivedAt;
+    QDateTime m_messageErrorReceivedAt;
+    QDateTime m_messageFilterReceivedAt;
+    QDateTime m_messageInformationReceivedAt;
+    QDateTime m_messageLiveReceivedAt;
+    QDateTime m_messageOnzenLiveReceivedAt;
+    QDateTime m_messageOnzenSettingsReceivedAt;
+    QDateTime m_messagePeakReceivedAt;
+    QDateTime m_messagePeripheralReceivedAt;
+    QDateTime m_messageSettingsReceivedAt;
+
 signals:
     void workerClientConnect(const QString &host);
     void workerClientDisconnect();
-    void workerClientQueueMessage(const asdc::network::MessageType &messageType);
+    void workerClientQueueMessage(const asdc::net::MessageType &messageType);
 
     void clientHostChanged();
     void clientConnected();

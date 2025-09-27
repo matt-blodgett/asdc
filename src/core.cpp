@@ -2,7 +2,8 @@
 
 #include <QThread>
 
-#include "network/client.h"
+#include "net/client.h"
+#include "db/client.h"
 
 
 namespace asdc::core {
@@ -11,14 +12,14 @@ namespace asdc::core {
 NetworkClientWorker::NetworkClientWorker(QObject *parent)
     : QObject{parent}
 {
-    m_networkClient = new asdc::network::Client(this);
+    m_networkClient = new asdc::net::NetworkClient(this);
 
-    connect(m_networkClient, &asdc::network::Client::hostChanged, this, &NetworkClientWorker::clientHostChanged);
-    connect(m_networkClient, &asdc::network::Client::portChanged, this, &NetworkClientWorker::clientPortChanged);
-    connect(m_networkClient, &asdc::network::Client::connected, this, &NetworkClientWorker::clientConnected);
-    connect(m_networkClient, &asdc::network::Client::disconnected, this, &NetworkClientWorker::clientDisconnected);
-    connect(m_networkClient, &asdc::network::Client::stateChanged, this, &NetworkClientWorker::clientStateChanged);
-    connect(m_networkClient, &asdc::network::Client::errorOccurred, this, &NetworkClientWorker::clientErrorOccurred);
+    connect(m_networkClient, &asdc::net::NetworkClient::hostChanged, this, &NetworkClientWorker::clientHostChanged);
+    connect(m_networkClient, &asdc::net::NetworkClient::portChanged, this, &NetworkClientWorker::clientPortChanged);
+    connect(m_networkClient, &asdc::net::NetworkClient::connected, this, &NetworkClientWorker::clientConnected);
+    connect(m_networkClient, &asdc::net::NetworkClient::disconnected, this, &NetworkClientWorker::clientDisconnected);
+    connect(m_networkClient, &asdc::net::NetworkClient::stateChanged, this, &NetworkClientWorker::clientStateChanged);
+    connect(m_networkClient, &asdc::net::NetworkClient::errorOccurred, this, &NetworkClientWorker::clientErrorOccurred);
 };
 
 void NetworkClientWorker::connectClient(const QString &host) {
@@ -27,38 +28,38 @@ void NetworkClientWorker::connectClient(const QString &host) {
 void NetworkClientWorker::disconnectClient() {
     m_networkClient->disconnectFromDevice();
 }
-void NetworkClientWorker::queueMessage(const asdc::network::MessageType &messageType) {
-    if (messageType == asdc::network::MessageType::CLOCK) {
+void NetworkClientWorker::queueMessage(const asdc::net::MessageType &messageType) {
+    if (messageType == asdc::net::MessageType::CLOCK) {
         asdc::proto::Clock message = m_networkClient->getMessage<asdc::proto::Clock>(messageType);
         emit receivedMessageClock(message);
-    }  else if (messageType == asdc::network::MessageType::CONFIGURATION) {
+    }  else if (messageType == asdc::net::MessageType::CONFIGURATION) {
         asdc::proto::Configuration message = m_networkClient->getMessage<asdc::proto::Configuration>(messageType);
         emit receivedMessageConfiguration(message);
-    } else if (messageType == asdc::network::MessageType::ERROR) {
+    } else if (messageType == asdc::net::MessageType::ERROR) {
         asdc::proto::Error message = m_networkClient->getMessage<asdc::proto::Error>(messageType);
         emit receivedMessageError(message);
-    } else if (messageType == asdc::network::MessageType::FILTERS) {
+    } else if (messageType == asdc::net::MessageType::FILTERS) {
         asdc::proto::Filter message = m_networkClient->getMessage<asdc::proto::Filter>(messageType);
         emit receivedMessageFilter(message);
-    } else if (messageType == asdc::network::MessageType::INFORMATION) {
+    } else if (messageType == asdc::net::MessageType::INFORMATION) {
         asdc::proto::Information message = m_networkClient->getMessage<asdc::proto::Information>(messageType);
         emit receivedMessageInformation(message);
-    } else if (messageType == asdc::network::MessageType::LIVE) {
+    } else if (messageType == asdc::net::MessageType::LIVE) {
         asdc::proto::Live message = m_networkClient->getMessage<asdc::proto::Live>(messageType);
         emit receivedMessageLive(message);
-    } else if (messageType == asdc::network::MessageType::ONZEN_LIVE) {
+    } else if (messageType == asdc::net::MessageType::ONZEN_LIVE) {
         asdc::proto::OnzenLive message = m_networkClient->getMessage<asdc::proto::OnzenLive>(messageType);
         emit receivedMessageOnzenLive(message);
-    } else if (messageType == asdc::network::MessageType::ONZEN_SETTINGS) {
+    } else if (messageType == asdc::net::MessageType::ONZEN_SETTINGS) {
         asdc::proto::OnzenSettings message = m_networkClient->getMessage<asdc::proto::OnzenSettings>(messageType);
         emit receivedMessageOnzenSettings(message);
-    } else if (messageType == asdc::network::MessageType::PEAK) {
+    } else if (messageType == asdc::net::MessageType::PEAK) {
         asdc::proto::Peak message = m_networkClient->getMessage<asdc::proto::Peak>(messageType);
         emit receivedMessagePeak(message);
-    } else if (messageType == asdc::network::MessageType::PERIPHERAL) {
+    } else if (messageType == asdc::net::MessageType::PERIPHERAL) {
         asdc::proto::Peripheral message = m_networkClient->getMessage<asdc::proto::Peripheral>(messageType);
         emit receivedMessagePeripheral(message);
-    } else if (messageType == asdc::network::MessageType::SETTINGS) {
+    } else if (messageType == asdc::net::MessageType::SETTINGS) {
         asdc::proto::Settings message = m_networkClient->getMessage<asdc::proto::Settings>(messageType);
         emit receivedMessageSettings(message);
     }
@@ -67,14 +68,16 @@ void NetworkClientWorker::queueMessage(const asdc::network::MessageType &message
 Core::Core(QObject *parent)
     : QObject{parent}
 {
+    m_networkClientWorkerThread = new QThread(this);
+
+    m_databaseClient = new asdc::db::DatabaseClient(this);
+
     NetworkClientWorker *worker = new NetworkClientWorker();
-    m_workerThread = new QThread(this);
+    worker->moveToThread(m_networkClientWorkerThread);
 
-    worker->moveToThread(m_workerThread);
-
-    connect(m_workerThread, &QThread::finished, worker, &NetworkClientWorker::disconnectClient);
-    connect(m_workerThread, &QThread::finished, worker, &QObject::deleteLater);
-    connect(m_workerThread, &QThread::finished, m_workerThread, &QObject::deleteLater);
+    connect(m_networkClientWorkerThread, &QThread::finished, worker, &NetworkClientWorker::disconnectClient);
+    connect(m_networkClientWorkerThread, &QThread::finished, worker, &QObject::deleteLater);
+    connect(m_networkClientWorkerThread, &QThread::finished, m_networkClientWorkerThread, &QObject::deleteLater);
 
     connect(worker, &NetworkClientWorker::clientHostChanged, this, &Core::onWorkerClientHostChanged);
     connect(worker, &NetworkClientWorker::clientConnected, this, &Core::onWorkerClientConnected);
@@ -98,12 +101,104 @@ Core::Core(QObject *parent)
     connect(worker, &NetworkClientWorker::receivedMessagePeripheral, this, &Core::setMessagePeripheral);
     connect(worker, &NetworkClientWorker::receivedMessageSettings, this, &Core::setMessageSettings);
 
-    m_workerThread->start();
+    connect(
+        this,
+        &Core::messageClockChanged,
+        m_databaseClient,
+        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::CLOCK, &m_messageClock, m_messageClockReceivedAt); }
+    );
+    connect(
+        this,
+        &Core::messageConfigurationChanged,
+        m_databaseClient,
+        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::CONFIGURATION, &m_messageConfiguration, m_messageConfigurationReceivedAt); }
+    );
+    connect(
+        this,
+        &Core::messageErrorChanged,
+        m_databaseClient,
+        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::ERROR, &m_messageError, m_messageErrorReceivedAt); }
+    );
+    connect(
+        this,
+        &Core::messageFilterChanged,
+        m_databaseClient,
+        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::FILTERS, &m_messageFilter, m_messageFilterReceivedAt); }
+    );
+    connect(
+        this,
+        &Core::messageInformationChanged,
+        m_databaseClient,
+        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::INFORMATION, &m_messageInformation, m_messageInformationReceivedAt); }
+    );
+    connect(
+        this,
+        &Core::messageLiveChanged,
+        m_databaseClient,
+        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::LIVE, &m_messageLive, m_messageLiveReceivedAt); }
+    );
+    connect(
+        this,
+        &Core::messageOnzenLiveChanged,
+        m_databaseClient,
+        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::ONZEN_LIVE, &m_messageOnzenLive, m_messageOnzenLiveReceivedAt); }
+    );
+    connect(
+        this,
+        &Core::messageOnzenSettingsChanged,
+        m_databaseClient,
+        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::ONZEN_SETTINGS, &m_messageOnzenSettings, m_messageOnzenSettingsReceivedAt); }
+    );
+    connect(
+        this,
+        &Core::messagePeakChanged,
+        m_databaseClient,
+        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::PEAK, &m_messagePeak, m_messagePeakReceivedAt); }
+    );
+    connect(
+        this,
+        &Core::messagePeripheralChanged,
+        m_databaseClient,
+        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::PERIPHERAL, &m_messagePeripheral, m_messagePeripheralReceivedAt); }
+    );
+    connect(
+        this,
+        &Core::messageSettingsChanged,
+        m_databaseClient,
+        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::SETTINGS, &m_messageSettings, m_messageSettingsReceivedAt); }
+    );
+
+    m_databaseClient->openDatabase();
+
+    m_networkClientWorkerThread->start();
+
+
+    m_messageLiveReceivedAt = QDateTime::currentDateTime();
+    m_messageLive.setTemperatureFahrenheit(69);
+    m_messageLive.setPump1(asdc::proto::Live::PumpStatus(1));
+    setMessageLive(m_messageLive);
+
+    m_messageLive.setTemperatureFahrenheit(89);
+    setMessageLive(m_messageLive);
+    m_messageLive.setTemperatureFahrenheit(100);
+    setMessageLive(m_messageLive);
+    m_messageLive.setTemperatureFahrenheit(120);
+    setMessageLive(m_messageLive);
+    m_messageLive.setTemperatureFahrenheit(130);
+    setMessageLive(m_messageLive);
+    m_messageLive.setTemperatureFahrenheit(140);
+    setMessageLive(m_messageLive);
+    m_messageLive.setTemperatureFahrenheit(150);
+    setMessageLive(m_messageLive);
+    m_messageLive.setTemperatureFahrenheit(160);
+    setMessageLive(m_messageLive);
+    m_messageLive.setTemperatureFahrenheit(170);
+    setMessageLive(m_messageLive);
 }
 Core::~Core() {
     qDebug() << "quitting worker thread";
-    m_workerThread->quit();
-    m_workerThread->wait();
+    m_networkClientWorkerThread->quit();
+    m_networkClientWorkerThread->wait();
     qDebug() << "quit worker thread";
 }
 
@@ -182,83 +277,128 @@ asdc::proto::Settings Core::getMessageSettings() const {
     return m_messageSettings;
 }
 
+QDateTime Core::getMessageClockReceivedAt() const {
+    return m_messageClockReceivedAt;
+}
+QDateTime Core::getMessageConfigurationReceivedAt() const {
+    return m_messageConfigurationReceivedAt;
+}
+QDateTime Core::getMessageErrorReceivedAt() const {
+    return m_messageErrorReceivedAt;
+}
+QDateTime Core::getMessageFilterReceivedAt() const {
+    return m_messageFilterReceivedAt;
+}
+QDateTime Core::getMessageInformationReceivedAt() const {
+    return m_messageInformationReceivedAt;
+}
+QDateTime Core::getMessageLiveReceivedAt() const {
+    return m_messageLiveReceivedAt;
+}
+QDateTime Core::getMessageOnzenLiveReceivedAt() const {
+    return m_messageOnzenLiveReceivedAt;
+}
+QDateTime Core::getMessageOnzenSettingsReceivedAt() const {
+    return m_messageOnzenSettingsReceivedAt;
+}
+QDateTime Core::getMessagePeakReceivedAt() const {
+    return m_messagePeakReceivedAt;
+}
+QDateTime Core::getMessagePeripheralReceivedAt() const {
+    return m_messagePeripheralReceivedAt;
+}
+QDateTime Core::getMessageSettingsReceivedAt() const {
+    return m_messageSettingsReceivedAt;
+}
+
 void Core::setMessageClock(asdc::proto::Clock message) {
     m_messageClock = message;
+    m_messageClockReceivedAt = QDateTime::currentDateTime();
     emit messageClockChanged();
 }
 void Core::setMessageConfiguration(asdc::proto::Configuration message) {
     m_messageConfiguration = message;
+    m_messageConfigurationReceivedAt = QDateTime::currentDateTime();
     emit messageConfigurationChanged();
 }
 void Core::setMessageError(asdc::proto::Error message) {
     m_messageError = message;
+    m_messageErrorReceivedAt = QDateTime::currentDateTime();
     emit messageErrorChanged();
 }
 void Core::setMessageFilter(asdc::proto::Filter message) {
     m_messageFilter = message;
+    m_messageFilterReceivedAt = QDateTime::currentDateTime();
     emit messageFilterChanged();
 }
 void Core::setMessageInformation(asdc::proto::Information message) {
     m_messageInformation = message;
+    m_messageInformationReceivedAt = QDateTime::currentDateTime();
     emit messageInformationChanged();
 }
 void Core::setMessageLive(asdc::proto::Live message) {
     m_messageLive = message;
+    m_messageLiveReceivedAt = QDateTime::currentDateTime();
     emit messageLiveChanged();
 }
 void Core::setMessageOnzenLive(asdc::proto::OnzenLive message) {
     m_messageOnzenLive = message;
+    m_messageOnzenLiveReceivedAt = QDateTime::currentDateTime();
     emit messageOnzenLiveChanged();
 }
 void Core::setMessageOnzenSettings(asdc::proto::OnzenSettings message) {
     m_messageOnzenSettings = message;
+    m_messageOnzenSettingsReceivedAt = QDateTime::currentDateTime();
     emit messageOnzenSettingsChanged();
 }
 void Core::setMessagePeak(asdc::proto::Peak message) {
     m_messagePeak = message;
+    m_messagePeakReceivedAt = QDateTime::currentDateTime();
     emit messagePeakChanged();
 }
 void Core::setMessagePeripheral(asdc::proto::Peripheral message) {
     m_messagePeripheral = message;
+    m_messagePeripheralReceivedAt = QDateTime::currentDateTime();
     emit messagePeripheralChanged();
 }
 void Core::setMessageSettings(asdc::proto::Settings message) {
     m_messageSettings = message;
+    m_messageSettingsReceivedAt = QDateTime::currentDateTime();
     emit messageSettingsChanged();
 }
 
 void Core::refreshMessageClock() {
-    emit workerClientQueueMessage(asdc::network::MessageType::CLOCK);
+    emit workerClientQueueMessage(asdc::net::MessageType::CLOCK);
 }
 void Core::refreshMessageConfiguration() {
-    emit workerClientQueueMessage(asdc::network::MessageType::CONFIGURATION);
+    emit workerClientQueueMessage(asdc::net::MessageType::CONFIGURATION);
 }
 void Core::refreshMessageError() {
-    emit workerClientQueueMessage(asdc::network::MessageType::ERROR);
+    emit workerClientQueueMessage(asdc::net::MessageType::ERROR);
 }
 void Core::refreshMessageFilter() {
-    emit workerClientQueueMessage(asdc::network::MessageType::FILTERS);
+    emit workerClientQueueMessage(asdc::net::MessageType::FILTERS);
 }
 void Core::refreshMessageInformation() {
-    emit workerClientQueueMessage(asdc::network::MessageType::INFORMATION);
+    emit workerClientQueueMessage(asdc::net::MessageType::INFORMATION);
 }
 void Core::refreshMessageLive() {
-    emit workerClientQueueMessage(asdc::network::MessageType::LIVE);
+    emit workerClientQueueMessage(asdc::net::MessageType::LIVE);
 }
 void Core::refreshMessageOnzenLive() {
-    emit workerClientQueueMessage(asdc::network::MessageType::ONZEN_LIVE);
+    emit workerClientQueueMessage(asdc::net::MessageType::ONZEN_LIVE);
 }
 void Core::refreshMessageOnzenSettings() {
-    emit workerClientQueueMessage(asdc::network::MessageType::ONZEN_SETTINGS);
+    emit workerClientQueueMessage(asdc::net::MessageType::ONZEN_SETTINGS);
 }
 void Core::refreshMessagePeak() {
-    emit workerClientQueueMessage(asdc::network::MessageType::PEAK);
+    emit workerClientQueueMessage(asdc::net::MessageType::PEAK);
 }
 void Core::refreshMessagePeripheral() {
-    emit workerClientQueueMessage(asdc::network::MessageType::PERIPHERAL);
+    emit workerClientQueueMessage(asdc::net::MessageType::PERIPHERAL);
 }
 void Core::refreshMessageSettings() {
-    emit workerClientQueueMessage(asdc::network::MessageType::SETTINGS);
+    emit workerClientQueueMessage(asdc::net::MessageType::SETTINGS);
 }
 
 

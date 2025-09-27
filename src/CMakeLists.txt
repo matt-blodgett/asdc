@@ -1,12 +1,14 @@
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Quick Protobuf ProtobufQuick)
+find_package(Qt6 REQUIRED COMPONENTS Core Sql Quick Protobuf ProtobufQuick)
 qt_standard_project_setup(REQUIRES 6.8)
 
 qt_add_executable(asdc
-    network/bytebuffer.h network/bytebuffer.cpp
-    network/packet.h network/packet.cpp
-    network/client.h network/client.cpp
+    net/bytebuffer.h net/bytebuffer.cpp
+    net/packet.h net/packet.cpp
+    net/client.h net/client.cpp
+    db/client.h db/client.cpp
+    db/sqlquerymodel.h
     core.h core.cpp
     main.cpp
 )
@@ -15,9 +17,32 @@ qt_add_qml_module(asdc
     URI asdc.qml
     VERSION 1.0
     QML_FILES
+        qml/components/MessageViewer.qml
+        qml/pages/DashboardPage.qml
+        qml/pages/MainPage.qml
+        qml/pages/MessageViewerPage.qml
+        qml/pages/SettingsPage.qml
+        qml/pages/SqlBrowserPage.qml
         qml/Main.qml
-        QML_FILES qml/MessageViewer.qml
+    RESOURCES
+        assets/icons/check_circle.svg
+        assets/icons/error_circle.svg
+        assets/icons/progress_circle.svg
 )
+
+# # Resources:
+# set(masterdetail_resource_files
+#     "images/icon.png"
+#     "images/image.png"
+#     "albumdetails.xml"
+# )
+
+# qt_add_resources(masterdetail "masterdetail"
+#     PREFIX
+#         "/"
+#     FILES
+#         ${masterdetail_resource_files}
+# )
 
 qt_add_protobuf(asdc_proto
     QML
@@ -46,6 +71,7 @@ qt_add_protobuf(asdc_proto
 
 target_link_libraries(asdc PRIVATE
     Qt6::Core
+    Qt6::Sql
     Qt6::Quick
     Qt6::Protobuf
     Qt6::ProtobufQuick

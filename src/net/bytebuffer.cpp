@@ -14,7 +14,7 @@ QByteArray pack_qint32_be(qint32 value) {
     return bytes;
 }
 
-namespace asdc::network {
+namespace asdc::net {
 
 ByteBuffer::ByteBuffer(int capacity) : m_buffer(capacity, 0), m_stream(&m_buffer, QIODevice::ReadWrite) {}
 
@@ -36,4 +36,4 @@ void ByteBuffer::putIntAt(qint64 pos, qint32 value) {
     m_stream.device()->seek(currentPos);
 }
 
-};  // namespace asdc::network
+};  // namespace asdc::net

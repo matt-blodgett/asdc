@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/assets">
+        <file>icons/check_circle.svg</file>
+        <file>icons/error_circle.svg</file>
+        <file>icons/progress_circle.svg</file>
+        <file>icons/refresh.svg</file>
+    </qresource>
+</RCC>

@@ -13,7 +13,7 @@ unsigned long calculateCrc32(const unsigned char* data, unsigned int length) {
 }
 
 
-namespace asdc::network {
+namespace asdc::net {
 
 
 Packet::Packet(qint16 type, const QByteArray& payload) {
@@ -65,4 +65,4 @@ QByteArray Packet::serialize() {
     return buffer.getBuffer();
 }
 
-};  // namespace network::asdc
+};  // namespace asdc::net

@@ -5,7 +5,7 @@
 #include <QDataStream>
 
 
-namespace asdc::network {
+namespace asdc::net {
 
 class ByteBuffer {
 
@@ -29,6 +29,6 @@ private:
     QDataStream m_stream;
 };
 
-};  // namespace asdc::network
+};  // namespace asdc::net
 
 #endif // BYTEBUFFER_H

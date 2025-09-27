@@ -4,7 +4,7 @@
 #include <QByteArray>
 
 
-namespace asdc::network {
+namespace asdc::net {
 
 class Packet {
 
@@ -23,6 +23,6 @@ private:
     quint32 m_checksum;
 };
 
-};  // namespace network::asdc
+};  // namespace asdc::net
 
 #endif // PACKET_H

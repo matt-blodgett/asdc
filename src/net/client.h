@@ -1,12 +1,12 @@
-#ifndef CLIENT_H
-#define CLIENT_H
+#ifndef NET_CLIENT_H
+#define NET_CLIENT_H
 
 #include <QObject>
 #include <QTcpSocket>
 #include <QtProtobuf/QProtobufSerializer>
 
 
-namespace asdc::network {
+namespace asdc::net {
 Q_NAMESPACE
 
 
@@ -78,12 +78,12 @@ struct Header {
 };
 
 
-class Client : public QObject
+class NetworkClient : public QObject
 {
     Q_OBJECT
 public:
-    explicit Client(QObject *parent = nullptr);
-    ~Client();
+    explicit NetworkClient(QObject *parent = nullptr);
+    ~NetworkClient();
 
     bool connectToDevice(const QString &host, const quint16 &port = 65534);
     void disconnectFromDevice();
@@ -135,6 +135,6 @@ signals:
     void errorOccurred(QAbstractSocket::SocketError socketError);
 };
 
-};  // namespace asdc::network
+};  // namespace asdc::net
 
-#endif // CLIENT_H
+#endif // NET_CLIENT_H

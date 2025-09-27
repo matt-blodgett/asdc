@@ -2,13 +2,16 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <qlogging.h>
-
+#include <QIcon>
 
 #include "core.h"
 
 
 //#define MESSAGE_PATTERN "[%{time yyyyMMdd h:mm:ss.zzz}] %{if-debug}DBUG:%{endif}%{if-info}INFO:%{endif}%{if-warning}WARN:%{endif}%{if-critical}CRIT:%{endif}%{if-fatal}FATAL:%{endif} <%{function}> %{message}"
 #define MESSAGE_PATTERN "%{if-debug}DBUG:%{endif}%{if-info}INFO:%{endif}%{if-warning}WARN:%{endif}%{if-critical}CRIT:%{endif}%{if-fatal}FATAL:%{endif} <%{function}> %{message}"
+
+
+#include "db/sqlquerymodel.h"
 
 
 int main(int argc, char *argv[])
@@ -20,10 +23,15 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     QQmlApplicationEngine engine;
 
+    // app.setWindowIcon(QIcon("src/assets/icons/hot_tub.ico"));
+
     qSetMessagePattern(MESSAGE_PATTERN);
 
     qRegisterMetaType<QAbstractSocket::SocketState>();
     qmlRegisterUncreatableType<QAbstractSocket>("asdc.types.sockets", 1, 0, "SocketState", "SocketState is an enum, not a creatable type.");
+
+    qmlRegisterType<SqlTableModel>("asdc.types.models", 1, 0, "SqlTableModel");
+    qmlRegisterType<SqlQueryModel>("asdc.types.models", 1, 0, "SqlQueryModel");
 
     QObject::connect(
         &engine,
