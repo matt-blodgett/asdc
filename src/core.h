@@ -110,6 +110,9 @@ public:
     explicit Core(QObject *parent = nullptr);
     ~Core();
 
+private:
+    void test();
+
 public:
     Q_INVOKABLE void connectClient(const QString &host);
     Q_INVOKABLE void disconnectClient();

@@ -22,7 +22,7 @@ class DatabaseClient : public QObject
 public:
     explicit DatabaseClient(QObject *parent = nullptr);
 
-    bool openDatabase();
+    bool openDatabase(const bool &overwrite = false);
 
 private:
     bool validateSchema();

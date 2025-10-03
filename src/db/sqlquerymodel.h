@@ -10,50 +10,152 @@
 #include <QSqlRecord>
 
 #include <QSqlQuery>
+#include <QVariant>
 
 #include <QDebug>
 
 
-class SqlTableModel : public QSqlTableModel {
+class SqlTableModel : public QSqlTableModel
+{
     Q_OBJECT
-    Q_PROPERTY(QString table READ table WRITE setTableX NOTIFY tableChanged)
+
+    Q_PROPERTY(QString table READ tableName WRITE setTable NOTIFY tableChanged)
+
+    Q_PROPERTY(int sortColumn READ sortColumn NOTIFY sortChanged)
+    Q_PROPERTY(Qt::SortOrder sortOrder READ sortOrder NOTIFY sortChanged)
+
+    Q_PROPERTY(QString genericFilterString MEMBER m_genericFilterString NOTIFY genericFilterStringChanged)
+
 public:
     explicit SqlTableModel(QObject *parent = nullptr)
         : QSqlTableModel(parent) {}
 
-    QString table() const { return m_table; }
+    int sortColumn() const {
+        return m_sortColumn;
+    }
+    Qt::SortOrder sortOrder() const {
+        return m_sortOrder;
+    }
 
-    QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override {
-        if (section >= m_headers.length()) {
+    QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override {        
+        if (section < 0 || section >= m_headers.length()) {
             return "";
         }
         return m_headers.at(section);
     }
 
-public slots:
-    void setTableX(const QString &table) {
-        QSqlTableModel::setTable(table);
+    Q_INVOKABLE QString columnFilterString(int column) const {
+        if (column < 0 || column >= m_columnFilterStrings.length()) {
+            return "";
+        }
+        return m_columnFilterStrings.at(column);
+    }
+    Q_INVOKABLE bool setColumnFilterString(int column, const QString &value) {
+        if (column < 0 || column >= m_columnFilterStrings.length()) {
+            return false;
+        }
+        m_columnFilterStrings.replace(column, value);
+        return true;
+    }
+
+public:
+    Q_INVOKABLE void setTable(const QString &tableName) override {
+        QSqlTableModel::setTable(tableName);
         select();
 
-        QSqlQuery q(database());
-        q.exec("PRAGMA table_info(message_live);");
+        QSqlQuery query(database());
+        QString sql = "PRAGMA table_info(" + tableName + ");";
+
+        query.exec(sql);
 
         m_headers.clear();
-        while (q.next()) {
-            m_headers.append(q.value(1).toString());
+        m_columnFilterStrings.clear();
+        while (query.next()) {
+            m_headers.append(query.value(1).toString());
+            m_columnFilterStrings.append("");
         }
+
+        m_genericFilterString = "";
+        emit genericFilterStringChanged();
 
         emit layoutChanged();
         emit tableChanged();
+
+        applySort(0, Qt::AscendingOrder);
+    }
+
+    Q_INVOKABLE void applySort(const int &column, const Qt::SortOrder &order) {
+        if (column < 0 || column >= m_headers.length()) {
+            return;
+        }
+
+        m_sortColumn = column;
+        m_sortOrder = order;
+
+        sort(column, order);
+
+        emit sortChanged();
+    }
+
+    Q_INVOKABLE void applyFilters() {
+        int colCount = m_headers.length();
+
+        QString genericFilterStatement = "";
+        if (!m_genericFilterString.isEmpty() && !m_genericFilterString.isNull()) {
+            for (int i = 0; i < colCount; i++) {
+                QString colName = m_headers.at(i);
+                genericFilterStatement += colName + " LIKE '%" + m_genericFilterString + "%' OR ";
+            }
+        }
+
+        if (genericFilterStatement.endsWith("OR ")) {
+            genericFilterStatement.remove(genericFilterStatement.length() - 4, 3);
+        }
+
+        QString columnFilterStatement = "";
+        for (int i = 0; i < colCount; i++) {
+            QString colFilterString = m_columnFilterStrings.at(i);
+            if (colFilterString != "") {
+                QString colName = m_headers.at(i);
+                columnFilterStatement += colName + " LIKE '%" + colFilterString + "%' AND ";
+            }
+        }
+
+        if (columnFilterStatement.endsWith("AND ")) {
+            columnFilterStatement.remove(columnFilterStatement.length() - 5, 4);
+        }
+
+        QString filterStatement = "";
+        if (genericFilterStatement != "" && columnFilterStatement != "") {
+            filterStatement += "(" + genericFilterStatement + ")";
+            filterStatement += " AND ";
+            filterStatement += "(" + columnFilterStatement + ")";
+        } else if (genericFilterStatement != "") {
+            filterStatement = genericFilterStatement;
+        } else if (columnFilterStatement != "") {
+            filterStatement = columnFilterStatement;
+        }
+
+        qDebug() << "genericFilterString:" << m_genericFilterString;
+        qDebug() << "columnFilterStrings:" << m_columnFilterStrings;
+        qDebug() << "filterStatement:" << filterStatement;
+
+        setFilter(filterStatement);
     }
 
 private:
-    QString m_table;
-
     QStringList m_headers;
+
+    int m_sortColumn = 0;
+    Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
+
+    QString m_genericFilterString;
+    QStringList m_columnFilterStrings;
 
 signals:
     void tableChanged();
+    void sortChanged();
+    void genericFilterStringChanged();
 };
 
 

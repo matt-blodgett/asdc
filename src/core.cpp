@@ -168,38 +168,85 @@ Core::Core(QObject *parent)
         [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::SETTINGS, &m_messageSettings, m_messageSettingsReceivedAt); }
     );
 
-    m_databaseClient->openDatabase();
+    m_databaseClient->openDatabase(false);
 
     m_networkClientWorkerThread->start();
 
 
-    m_messageLiveReceivedAt = QDateTime::currentDateTime();
-    m_messageLive.setTemperatureFahrenheit(69);
-    m_messageLive.setPump1(asdc::proto::Live::PumpStatus(1));
-    setMessageLive(m_messageLive);
-
-    m_messageLive.setTemperatureFahrenheit(89);
-    setMessageLive(m_messageLive);
-    m_messageLive.setTemperatureFahrenheit(100);
-    setMessageLive(m_messageLive);
-    m_messageLive.setTemperatureFahrenheit(120);
-    setMessageLive(m_messageLive);
-    m_messageLive.setTemperatureFahrenheit(130);
-    setMessageLive(m_messageLive);
-    m_messageLive.setTemperatureFahrenheit(140);
-    setMessageLive(m_messageLive);
-    m_messageLive.setTemperatureFahrenheit(150);
-    setMessageLive(m_messageLive);
-    m_messageLive.setTemperatureFahrenheit(160);
-    setMessageLive(m_messageLive);
-    m_messageLive.setTemperatureFahrenheit(170);
-    setMessageLive(m_messageLive);
+    // test();
 }
 Core::~Core() {
     qDebug() << "quitting worker thread";
     m_networkClientWorkerThread->quit();
     m_networkClientWorkerThread->wait();
     qDebug() << "quit worker thread";
+}
+
+void Core::test() {
+
+    // --------------------------------------------------
+    // Live
+    int count = 60;
+    for (int i = count; i >= 0; i--) {
+        int seconds = i * 60;
+        QDateTime receivedAt = QDateTime::currentDateTime().addSecs(-seconds);
+
+        m_messageLive.setTemperatureFahrenheit(i * 2);
+
+        m_databaseClient->writeMessage(asdc::net::MessageType::LIVE, &m_messageLive, receivedAt);
+    }
+
+    m_messageLiveReceivedAt = QDateTime::currentDateTime();
+    m_messageLive.setTemperatureFahrenheit(101);
+    m_messageLive.setTemperatureSetpointFahrenheit(103);
+    m_messageLive.setPump1(asdc::proto::Live::PumpStatus(1));
+    setMessageLive(m_messageLive);
+
+
+    // --------------------------------------------------
+    // OnzenLive
+    m_messageOnzenLive.setGuid("A0-test");
+    m_messageOnzenLive.setOrp(100);
+    m_messageOnzenLive.setPh100(600);
+    m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_LOW);
+    m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_LOW);
+    setMessageOnzenLive(m_messageOnzenLive);
+
+    m_messageOnzenLive.setGuid("B0-test");
+    m_messageOnzenLive.setOrp(500);
+    m_messageOnzenLive.setPh100(690);
+    m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_CAUTION_LOW);
+    m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_CAUTION_LOW);
+    setMessageOnzenLive(m_messageOnzenLive);
+
+    m_messageOnzenLive.setGuid("B1-test");
+    m_messageOnzenLive.setOrp(620);
+    m_messageOnzenLive.setPh100(720);
+    m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_OK);
+    m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_OK);
+    setMessageOnzenLive(m_messageOnzenLive);
+
+    m_messageOnzenLive.setGuid("C0-test");
+    m_messageOnzenLive.setOrp(710);
+    m_messageOnzenLive.setPh100(750);
+    m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_CAUTION_HIGH);
+    m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_CAUTION_HIGH);
+    setMessageOnzenLive(m_messageOnzenLive);
+
+    m_messageOnzenLive.setGuid("D0-test");
+    m_messageOnzenLive.setOrp(850);
+    m_messageOnzenLive.setPh100(794);
+    m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_HIGH);
+    m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_HIGH);
+    setMessageOnzenLive(m_messageOnzenLive);
+
+
+    m_messageOnzenLive.setGuid("test");
+    m_messageOnzenLive.setOrp(615);
+    m_messageOnzenLive.setPh100(722);
+    m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_OK);
+    m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_OK);
+    setMessageOnzenLive(m_messageOnzenLive);
 }
 
 void Core::connectClient(const QString &host) {

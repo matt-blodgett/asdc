@@ -401,15 +401,14 @@ DatabaseClient::DatabaseClient(QObject *parent)
     m_database = QSqlDatabase::addDatabase("QSQLITE");
 }
 
-bool DatabaseClient::openDatabase() {
+bool DatabaseClient::openDatabase(const bool &overwrite) {
     const QString path(ASDC_DATABASE_NAME);
 
     qDebug() << "connecting to database at " << path;
 
     const bool isExistingDatabaseFile = QFile::exists(path);
 
-    // TODO: overwrite for testing
-    if (isExistingDatabaseFile) {
+    if (isExistingDatabaseFile && overwrite) {
         if (QFile::remove(path)) {
             qDebug() << "removed existing database file";
         }
@@ -423,15 +422,13 @@ bool DatabaseClient::openDatabase() {
         return false;
     }
 
-    // if (isExistingDatabaseFile) {
-    //     if (!validateSchema()) {
-    //         return false;
-    //     }
-    // } else {
-    //     initializeSchema();
-    // }
-
-    initializeSchema();
+    if (isExistingDatabaseFile && !overwrite) {
+        if (!validateSchema()) {
+            return false;
+        }
+    } else {
+        initializeSchema();
+    }
 
     createSession();
 
