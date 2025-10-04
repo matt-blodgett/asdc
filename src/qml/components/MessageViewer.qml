@@ -3,8 +3,22 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import Qt.labs.qmlmodels
 
+import asdc.types.sockets
+
 Item {
     id: root
+
+    Component {
+        id: viewOptionButton
+
+        Button {
+            property string messageName: ""
+
+            text: messageName
+            checked: messageTableView.currentMessageName === messageName
+            onReleased: messageTableView.populateData(messageName)
+        }
+    }
 
     Rectangle {
         anchors.fill: parent
@@ -550,6 +564,7 @@ Item {
                                 id: refreshButton
                                 implicitWidth: 120
                                 text: "Refresh"
+                                enabled: core.clientState === SocketState.ConnectedState
                                 onReleased: {
                                     const currentMessageName = messageTableView.currentMessageName
                                     if (!currentMessageName) {
@@ -563,18 +578,6 @@ Item {
                     }
                 }
             }
-        }
-    }
-
-    Component {
-        id: viewOptionButton
-
-        Button {
-            property string messageName: ""
-
-            text: messageName
-            checked: messageTableView.currentMessageName === messageName
-            onReleased: messageTableView.populateData(messageName)
         }
     }
 }

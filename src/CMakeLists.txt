@@ -8,7 +8,10 @@ qt_add_executable(asdc
     net/packet.h net/packet.cpp
     net/client.h net/client.cpp
     db/client.h db/client.cpp
+
+    net/discovery.h net/discovery.cpp
     db/sqlquerymodel.h
+
     core.h core.cpp
     main.cpp
 )
@@ -17,12 +20,18 @@ qt_add_qml_module(asdc
     URI asdc.qml
     VERSION 1.0
     QML_FILES
+        qml/components/DeviceStatusDisplay.qml
+        qml/components/FeatureControls.qml
         qml/components/MessageViewer.qml
+        qml/components/SensorReadingsDisplay.qml
+        qml/components/TemperatureControls.qml
+
         qml/pages/DashboardPage.qml
         qml/pages/MainPage.qml
         qml/pages/MessageViewerPage.qml
         qml/pages/SettingsPage.qml
         qml/pages/SqlBrowserPage.qml
+
         qml/Main.qml
     RESOURCES
         assets/icons/check_circle.svg

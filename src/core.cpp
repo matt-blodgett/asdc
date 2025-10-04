@@ -6,6 +6,10 @@
 #include "db/client.h"
 
 
+#include "net/discovery.h"
+
+
+
 namespace asdc::core {
 
 
@@ -20,6 +24,7 @@ NetworkClientWorker::NetworkClientWorker(QObject *parent)
     connect(m_networkClient, &asdc::net::NetworkClient::disconnected, this, &NetworkClientWorker::clientDisconnected);
     connect(m_networkClient, &asdc::net::NetworkClient::stateChanged, this, &NetworkClientWorker::clientStateChanged);
     connect(m_networkClient, &asdc::net::NetworkClient::errorOccurred, this, &NetworkClientWorker::clientErrorOccurred);
+    connect(m_networkClient, &asdc::net::NetworkClient::headerReceived, this, &NetworkClientWorker::onHeaderReceived);
 };
 
 void NetworkClientWorker::connectClient(const QString &host) {
@@ -29,41 +34,92 @@ void NetworkClientWorker::disconnectClient() {
     m_networkClient->disconnectFromDevice();
 }
 void NetworkClientWorker::queueMessage(const asdc::net::MessageType &messageType) {
+    qDebug() << "requesting message" << messageType;
+    m_networkClient->requestMessage(messageType);
+}
+
+bool NetworkClientWorker::checkSerializerError() {
+    if (m_serializer.lastError() != QAbstractProtobufSerializer::Error::None) {
+        qWarning().nospace()
+        << "Unable to deserialize ("
+        << qToUnderlying(m_serializer.lastError()) << ")"
+        << m_serializer.lastErrorString();
+        return true;
+    }
+    return false;
+}
+void NetworkClientWorker::onHeaderReceived(const asdc::net::Header &header) {
+    asdc::net::MessageType messageType = static_cast<asdc::net::MessageType>(header.messageType);
+
     if (messageType == asdc::net::MessageType::CLOCK) {
-        asdc::proto::Clock message = m_networkClient->getMessage<asdc::proto::Clock>(messageType);
-        emit receivedMessageClock(message);
-    }  else if (messageType == asdc::net::MessageType::CONFIGURATION) {
-        asdc::proto::Configuration message = m_networkClient->getMessage<asdc::proto::Configuration>(messageType);
-        emit receivedMessageConfiguration(message);
+        asdc::proto::Clock message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!checkSerializerError()) {
+            emit receivedMessageClock(message);
+        }
+    } else if (messageType == asdc::net::MessageType::CONFIGURATION) {
+        asdc::proto::Configuration message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!checkSerializerError()) {
+            emit receivedMessageConfiguration(message);
+        }
     } else if (messageType == asdc::net::MessageType::ERROR) {
-        asdc::proto::Error message = m_networkClient->getMessage<asdc::proto::Error>(messageType);
-        emit receivedMessageError(message);
+        asdc::proto::Error message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!checkSerializerError()) {
+            emit receivedMessageError(message);
+        }
     } else if (messageType == asdc::net::MessageType::FILTERS) {
-        asdc::proto::Filter message = m_networkClient->getMessage<asdc::proto::Filter>(messageType);
-        emit receivedMessageFilter(message);
+        asdc::proto::Filter message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!checkSerializerError()) {
+            emit receivedMessageFilter(message);
+        }
     } else if (messageType == asdc::net::MessageType::INFORMATION) {
-        asdc::proto::Information message = m_networkClient->getMessage<asdc::proto::Information>(messageType);
-        emit receivedMessageInformation(message);
+        asdc::proto::Information message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!checkSerializerError()) {
+            emit receivedMessageInformation(message);
+        }
     } else if (messageType == asdc::net::MessageType::LIVE) {
-        asdc::proto::Live message = m_networkClient->getMessage<asdc::proto::Live>(messageType);
-        emit receivedMessageLive(message);
+        asdc::proto::Live message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!checkSerializerError()) {
+            emit receivedMessageLive(message);
+        }
     } else if (messageType == asdc::net::MessageType::ONZEN_LIVE) {
-        asdc::proto::OnzenLive message = m_networkClient->getMessage<asdc::proto::OnzenLive>(messageType);
-        emit receivedMessageOnzenLive(message);
+        asdc::proto::OnzenLive message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!checkSerializerError()) {
+            emit receivedMessageOnzenLive(message);
+        }
     } else if (messageType == asdc::net::MessageType::ONZEN_SETTINGS) {
-        asdc::proto::OnzenSettings message = m_networkClient->getMessage<asdc::proto::OnzenSettings>(messageType);
-        emit receivedMessageOnzenSettings(message);
+        asdc::proto::OnzenSettings message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!checkSerializerError()) {
+            emit receivedMessageOnzenSettings(message);
+        }
     } else if (messageType == asdc::net::MessageType::PEAK) {
-        asdc::proto::Peak message = m_networkClient->getMessage<asdc::proto::Peak>(messageType);
-        emit receivedMessagePeak(message);
+        asdc::proto::Peak message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!checkSerializerError()) {
+            emit receivedMessagePeak(message);
+        }
     } else if (messageType == asdc::net::MessageType::PERIPHERAL) {
-        asdc::proto::Peripheral message = m_networkClient->getMessage<asdc::proto::Peripheral>(messageType);
-        emit receivedMessagePeripheral(message);
+        asdc::proto::Peripheral message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!checkSerializerError()) {
+            emit receivedMessagePeripheral(message);
+        }
     } else if (messageType == asdc::net::MessageType::SETTINGS) {
-        asdc::proto::Settings message = m_networkClient->getMessage<asdc::proto::Settings>(messageType);
-        emit receivedMessageSettings(message);
+        asdc::proto::Settings message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!checkSerializerError()) {
+            emit receivedMessageSettings(message);
+        }
     }
 }
+
 
 Core::Core(QObject *parent)
     : QObject{parent}
@@ -168,12 +224,12 @@ Core::Core(QObject *parent)
         [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::SETTINGS, &m_messageSettings, m_messageSettingsReceivedAt); }
     );
 
-    m_databaseClient->openDatabase(false);
+    m_databaseClient->openDatabase(true);
 
     m_networkClientWorkerThread->start();
 
 
-    // test();
+    test();
 }
 Core::~Core() {
     qDebug() << "quitting worker thread";
@@ -182,7 +238,18 @@ Core::~Core() {
     qDebug() << "quit worker thread";
 }
 
+void Core::testDiscovery() {
+    asdc::net::DiscoveryClient discoveryClient;
+    discoveryClient.test();
+
+    discoveryClient.setIpAndMask("192.168.2.14", 24);
+    QStringList results = discoveryClient.search(/*timeoutMs*/ 1000, /*maxWorkers*/ 50);
+    qInfo() << "Found" << results.size() << "devices:" << results;
+}
+
 void Core::test() {
+
+    m_databaseClient->createConnectionSession("192.168.0.1");
 
     // --------------------------------------------------
     // Live
@@ -247,6 +314,11 @@ void Core::test() {
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_OK);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_OK);
     setMessageOnzenLive(m_messageOnzenLive);
+
+
+    m_messageSettings.setMinTemperature(52);
+    m_messageSettings.setMaxTemperature(104);
+    setMessageSettings(m_messageSettings);
 }
 
 void Core::connectClient(const QString &host) {
@@ -256,19 +328,20 @@ void Core::disconnectClient() {
     emit workerClientDisconnect();
 }
 
-QString Core::getClientHost() const {
+QString Core::clientHost() const {
     return m_clientHost;
 }
-QAbstractSocket::SocketState Core::getClientState() const {
+QAbstractSocket::SocketState Core::clientState() const {
     return m_clientState;
 }
-QAbstractSocket::SocketError Core::getClientError() const {
+QAbstractSocket::SocketError Core::clientError() const {
     return m_clientError;
 }
 
 void Core::onWorkerClientHostChanged(const QString &host) {
     m_clientHost = host;
     qDebug() << m_clientHost;
+    m_databaseClient->createConnectionSession(m_clientHost);
     emit clientHostChanged();
 }
 void Core::onWorkerClientConnected() {
@@ -290,71 +363,71 @@ void Core::onWorkerClientErrorOccurred(QAbstractSocket::SocketError socketError)
     emit clientErrorOccurred();
 }
 
-asdc::proto::Clock Core::getMessageClock() const {
+asdc::proto::Clock Core::messageClock() const {
     return m_messageClock;
 }
-asdc::proto::Configuration Core::getMessageConfiguration() const {
+asdc::proto::Configuration Core::messageConfiguration() const {
     return m_messageConfiguration;
 }
-asdc::proto::Error Core::getMessageError() const {
+asdc::proto::Error Core::messageError() const {
     return m_messageError;
 }
-asdc::proto::Filter Core::getMessageFilter() const {
+asdc::proto::Filter Core::messageFilter() const {
     return m_messageFilter;
 }
-asdc::proto::Information Core::getMessageInformation() const {
+asdc::proto::Information Core::messageInformation() const {
     return m_messageInformation;
 }
-asdc::proto::Live Core::getMessageLive() const {
+asdc::proto::Live Core::messageLive() const {
     return m_messageLive;
 }
-asdc::proto::OnzenLive Core::getMessageOnzenLive() const {
+asdc::proto::OnzenLive Core::messageOnzenLive() const {
     return m_messageOnzenLive;
 }
-asdc::proto::OnzenSettings Core::getMessageOnzenSettings() const {
+asdc::proto::OnzenSettings Core::messageOnzenSettings() const {
     return m_messageOnzenSettings;
 }
-asdc::proto::Peak Core::getMessagePeak() const {
+asdc::proto::Peak Core::messagePeak() const {
     return m_messagePeak;
 }
-asdc::proto::Peripheral Core::getMessagePeripheral() const {
+asdc::proto::Peripheral Core::messagePeripheral() const {
     return m_messagePeripheral;
 }
-asdc::proto::Settings Core::getMessageSettings() const {
+asdc::proto::Settings Core::messageSettings() const {
     return m_messageSettings;
 }
 
-QDateTime Core::getMessageClockReceivedAt() const {
+QDateTime Core::messageClockReceivedAt() const {
     return m_messageClockReceivedAt;
 }
-QDateTime Core::getMessageConfigurationReceivedAt() const {
+QDateTime Core::messageConfigurationReceivedAt() const {
     return m_messageConfigurationReceivedAt;
 }
-QDateTime Core::getMessageErrorReceivedAt() const {
+QDateTime Core::messageErrorReceivedAt() const {
     return m_messageErrorReceivedAt;
 }
-QDateTime Core::getMessageFilterReceivedAt() const {
+QDateTime Core::messageFilterReceivedAt() const {
     return m_messageFilterReceivedAt;
 }
-QDateTime Core::getMessageInformationReceivedAt() const {
+QDateTime Core::messageInformationReceivedAt() const {
     return m_messageInformationReceivedAt;
 }
-QDateTime Core::getMessageLiveReceivedAt() const {
+QDateTime Core::messageLiveReceivedAt() const {
     return m_messageLiveReceivedAt;
 }
-QDateTime Core::getMessageOnzenLiveReceivedAt() const {
+QDateTime Core::messageOnzenLiveReceivedAt() const {
     return m_messageOnzenLiveReceivedAt;
 }
-QDateTime Core::getMessageOnzenSettingsReceivedAt() const {
+QDateTime Core::messageOnzenSettingsReceivedAt() const {
     return m_messageOnzenSettingsReceivedAt;
 }
-QDateTime Core::getMessagePeakReceivedAt() const {
+QDateTime Core::messagePeakReceivedAt() const {
     return m_messagePeakReceivedAt;
 }
-QDateTime Core::getMessagePeripheralReceivedAt() const {
+QDateTime Core::messagePeripheralReceivedAt() const {
     return m_messagePeripheralReceivedAt;
 }
-QDateTime Core::getMessageSettingsReceivedAt() const {
+QDateTime Core::messageSettingsReceivedAt() const {
     return m_messageSettingsReceivedAt;
 }
 

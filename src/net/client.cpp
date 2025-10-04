@@ -1,5 +1,6 @@
 #include "client.h"
 
+#include <QTcpSocket>
 #include <QDebug>
 
 #include "packet.h"
@@ -91,6 +92,7 @@ NetworkClient::NetworkClient(QObject *parent)
     connect(m_socket, &QTcpSocket::disconnected, this, &NetworkClient::disconnected);
     connect(m_socket, &QTcpSocket::stateChanged, this, &NetworkClient::stateChanged);
     connect(m_socket, &QTcpSocket::errorOccurred, this, &NetworkClient::errorOccurred);
+    connect(m_socket, &QTcpSocket::readyRead, this, &NetworkClient::readAndParseData);
 }
 NetworkClient::~NetworkClient() {
     disconnectFromDevice();
@@ -168,27 +170,27 @@ QAbstractSocket::SocketError NetworkClient::error() const {
     return m_socket->error();
 }
 
-void NetworkClient::decodeOne(const QByteArray &data) {
-    Header header(data);
-    if (!header.isValid) {
-        return;
-    }
-    qDebug() << "skipped =" << header.skipped;
-    qDebug() << "checksum =" << header.checksum;
-    qDebug() << "counter =" << header.counter;
-    qDebug() << "unused =" << header.unused;
-    qDebug() << "messageType =" << header.messageType;
-    qDebug() << "length =" << header.length;
+// void NetworkClient::decodeOne(const QByteArray &data) {
+//     Header header(data);
+//     if (!header.isValid) {
+//         return;
+//     }
+//     qDebug() << "skipped =" << header.skipped;
+//     qDebug() << "checksum =" << header.checksum;
+//     qDebug() << "counter =" << header.counter;
+//     qDebug() << "unused =" << header.unused;
+//     qDebug() << "messageType =" << header.messageType;
+//     qDebug() << "length =" << header.length;
 
-    QByteArray payload = data.mid(HEADER_SIZE, header.length);
-    QByteArray remainder = data.mid(HEADER_SIZE + header.length, -1);
-    qDebug() << "payload =" << payload;
-    qDebug() << "remainder =" << remainder;
-}
-QByteArray NetworkClient::requestMessage(const MessageType &messageType) {
+//     QByteArray payload = data.mid(HEADER_SIZE, header.length);
+//     QByteArray remainder = data.mid(HEADER_SIZE + header.length, -1);
+//     qDebug() << "payload =" << payload;
+//     qDebug() << "remainder =" << remainder;
+// }
+bool NetworkClient::requestMessage(const MessageType &messageType) {
     if (!isConnected()) {
         qWarning() << "socket not connected!";
-        return {};
+        return false;
     }
 
     Packet packet(static_cast<qint32>(messageType));
@@ -196,55 +198,34 @@ QByteArray NetworkClient::requestMessage(const MessageType &messageType) {
 
     qDebug() << "writing message type" << messageType;
 
-    // Write requested message
     m_socket->write(packetBytes);
     if (!m_socket->waitForBytesWritten(3000)) {
         qWarning() << "write timeout!";
-        return {};
+        return false;
     }
 
-    // Wait for response
-    if (!m_socket->waitForReadyRead(3000)) {
-        qWarning() << "read timeout!";
-        return {};
-    }
-
-    qDebug() << "reading response";
-
-    QByteArray data = m_socket->read(1024);
-
-    return data;
+    return true;
 }
-QVector<Header> NetworkClient::parseResponse(const QByteArray &responseData) {
+void NetworkClient::readAndParseData() {
+    qDebug() << "data ready to read from host:" << m_socket->bytesAvailable() << "bytes";
 
-    QVector<Header> headers;
-
-    QByteArray data(responseData);
+    QByteArray data = m_socket->read(2048);
 
     while (!data.isEmpty()) {
-        Header h(data);
+        Header header(data);
 
-        if (!h.isValid) {
+        if (!header.isValid) {
             break;
         }
 
-        headers.append(h);
+        MessageType messageType = static_cast<MessageType>(header.messageType);
+        if (messageType != MessageType::HEARTBEAT) {
+            qDebug() << "got header message type:" << messageType;
+            emit headerReceived(header);
+        }
 
-        qDebug() << "header message type:" << static_cast<MessageType>(h.messageType);
-
-        QByteArray remainder = data.mid(HEADER_SIZE + h.length, -1);
+        QByteArray remainder = data.mid(HEADER_SIZE + header.length, -1);
         data = remainder;
-    }
-
-    qDebug() << "got" << headers.length() << "messages";
-    return headers;
-}
-void NetworkClient::checkSerializerError() {
-    if (m_serializer.lastError() != QAbstractProtobufSerializer::Error::None) {
-        qWarning().nospace()
-        << "Unable to deserialize ("
-        << qToUnderlying(m_serializer.lastError()) << ")"
-        << m_serializer.lastErrorString();
     }
 }
 

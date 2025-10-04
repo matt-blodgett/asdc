@@ -36,13 +36,25 @@ Item {
             ComboBox {
                 id: tableComboBox
                 model: [
+                    { text: "ProcessRun", value: "process_run" },
+                    { text: "ConnectionSession", value: "connection_session" },
+                    { text: "Clock", value: "message_clock" },
+                    { text: "Configuration", value: "message_configuration" },
+                    { text: "Error", value: "message_error" },
+                    { text: "Filter", value: "message_filter" },
+                    { text: "Information", value: "message_information" },
                     { text: "Live", value: "message_live" },
-                    { text: "OnzenLive", value: "message_onzen_live" }
+                    { text: "OnzenLive", value: "message_onzen_live" },
+                    { text: "OnzenSettings", value: "message_onzen_settings" },
+                    { text: "Peak", value: "message_peak" },
+                    { text: "Peripheral", value: "message_peripheral" },
+                    { text: "Settings", value: "message_settings" }
                 ]
                 textRole: "text"
                 valueRole: "value"
                 onActivated: function(index) {
                     sqlModel.table = valueAt(index)
+                    sqlTableView.positionViewAtCell(Qt.point(0, 0), TableView.AlignLeft | TableView.AlignTop)
                 }
             }
         }

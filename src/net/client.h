@@ -2,8 +2,10 @@
 #define NET_CLIENT_H
 
 #include <QObject>
-#include <QTcpSocket>
-#include <QtProtobuf/QProtobufSerializer>
+#include <QAbstractSocket>
+
+
+QT_FORWARD_DECLARE_CLASS(QTcpSocket)
 
 
 namespace asdc::net {
@@ -81,10 +83,12 @@ struct Header {
 class NetworkClient : public QObject
 {
     Q_OBJECT
+
 public:
     explicit NetworkClient(QObject *parent = nullptr);
     ~NetworkClient();
 
+public:
     bool connectToDevice(const QString &host, const quint16 &port = 65534);
     void disconnectFromDevice();
 
@@ -96,35 +100,16 @@ public:
     QAbstractSocket::SocketState state() const;
     QAbstractSocket::SocketError error() const;
 
-    void decodeOne(const QByteArray &data);
-    QByteArray requestMessage(const MessageType &messageType);
-    QVector<Header> parseResponse(const QByteArray &data);
+    // void decodeOne(const QByteArray &data);
+    bool requestMessage(const MessageType &messageType);
 
-private:
-    void checkSerializerError();
-
-public:
-    template<typename M>
-    M getMessage(const MessageType &messageType){
-        M message;
-        QByteArray data = requestMessage(messageType);
-        QVector<Header> headers = parseResponse(data);
-        for (int i = 0; i < headers.length(); i++) {
-            Header header = headers.at(i);
-            if (header.messageType == static_cast<qint32>(messageType)) {
-                message.deserialize(&m_serializer, header.payload);
-                checkSerializerError();
-                return message;
-            }
-        }
-        return message;
-    }
+private slots:
+    void readAndParseData();
 
 private:
     QString m_host;
     quint16 m_port;
     QTcpSocket *m_socket;
-    QProtobufSerializer m_serializer;
 
 signals:
     void hostChanged(const QString &host);
@@ -133,6 +118,7 @@ signals:
     void disconnected();
     void stateChanged(QAbstractSocket::SocketState socketState);
     void errorOccurred(QAbstractSocket::SocketError socketError);
+    void headerReceived(const asdc::net::Header &header);
 };
 
 };  // namespace asdc::net

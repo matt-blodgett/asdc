@@ -5,10 +5,7 @@
 #include <QAbstractSocket>
 #include <QDateTime>
 
-
-// QT_BEGIN_NAMESPACE
-// class QDateTime;
-// QT_END_NAMESPACE
+#include <QtProtobuf/QProtobufSerializer>
 
 
 #include "asdc/proto/Clock.qpb.h"
@@ -26,6 +23,7 @@
 
 namespace asdc::net {
 enum class MessageType;
+struct Header;
 class NetworkClient;
 }
 
@@ -49,7 +47,12 @@ public slots:
     void queueMessage(const asdc::net::MessageType &messageType);
 
 private:
+    bool checkSerializerError();
+    void onHeaderReceived(const asdc::net::Header &header);
+
+private:
     asdc::net::NetworkClient *m_networkClient;
+    QProtobufSerializer m_serializer;
 
 signals:
     void clientHostChanged(const QString &host);
@@ -78,37 +81,39 @@ class Core : public QObject
     QML_ELEMENT
     QML_SINGLETON
 
-    Q_PROPERTY(QString clientHost READ getClientHost NOTIFY clientHostChanged)
-    Q_PROPERTY(QAbstractSocket::SocketState clientState READ getClientState NOTIFY clientStateChanged)
-    Q_PROPERTY(QAbstractSocket::SocketError clientError READ getClientError NOTIFY clientErrorOccurred)
+    Q_PROPERTY(QString clientHost READ clientHost NOTIFY clientHostChanged)
+    Q_PROPERTY(QAbstractSocket::SocketState clientState READ clientState NOTIFY clientStateChanged)
+    Q_PROPERTY(QAbstractSocket::SocketError clientError READ clientError NOTIFY clientErrorOccurred)
 
-    Q_PROPERTY(asdc::proto::Clock messageClock READ getMessageClock NOTIFY messageClockChanged)
-    Q_PROPERTY(asdc::proto::Configuration messageConfiguration READ getMessageConfiguration NOTIFY messageConfigurationChanged)
-    Q_PROPERTY(asdc::proto::Error messageError READ getMessageError NOTIFY messageErrorChanged)
-    Q_PROPERTY(asdc::proto::Filter messageFilter READ getMessageFilter NOTIFY messageFilterChanged)
-    Q_PROPERTY(asdc::proto::Information messageInformation READ getMessageInformation NOTIFY messageInformationChanged)
-    Q_PROPERTY(asdc::proto::Live messageLive READ getMessageLive NOTIFY messageLiveChanged)
-    Q_PROPERTY(asdc::proto::OnzenLive messageOnzenLive READ getMessageOnzenLive NOTIFY messageOnzenLiveChanged)
-    Q_PROPERTY(asdc::proto::OnzenSettings messageOnzenSettings READ getMessageOnzenSettings NOTIFY messageOnzenSettingsChanged)
-    Q_PROPERTY(asdc::proto::Peak messagePeak READ getMessagePeak NOTIFY messagePeakChanged)
-    Q_PROPERTY(asdc::proto::Peripheral messagePeripheral READ getMessagePeripheral NOTIFY messagePeripheralChanged)
-    Q_PROPERTY(asdc::proto::Settings messageSettings READ getMessageSettings NOTIFY messageSettingsChanged)
+    Q_PROPERTY(asdc::proto::Clock messageClock READ messageClock NOTIFY messageClockChanged)
+    Q_PROPERTY(asdc::proto::Configuration messageConfiguration READ messageConfiguration NOTIFY messageConfigurationChanged)
+    Q_PROPERTY(asdc::proto::Error messageError READ messageError NOTIFY messageErrorChanged)
+    Q_PROPERTY(asdc::proto::Filter messageFilter READ messageFilter NOTIFY messageFilterChanged)
+    Q_PROPERTY(asdc::proto::Information messageInformation READ messageInformation NOTIFY messageInformationChanged)
+    Q_PROPERTY(asdc::proto::Live messageLive READ messageLive NOTIFY messageLiveChanged)
+    Q_PROPERTY(asdc::proto::OnzenLive messageOnzenLive READ messageOnzenLive NOTIFY messageOnzenLiveChanged)
+    Q_PROPERTY(asdc::proto::OnzenSettings messageOnzenSettings READ messageOnzenSettings NOTIFY messageOnzenSettingsChanged)
+    Q_PROPERTY(asdc::proto::Peak messagePeak READ messagePeak NOTIFY messagePeakChanged)
+    Q_PROPERTY(asdc::proto::Peripheral messagePeripheral READ messagePeripheral NOTIFY messagePeripheralChanged)
+    Q_PROPERTY(asdc::proto::Settings messageSettings READ messageSettings NOTIFY messageSettingsChanged)
 
-    Q_PROPERTY(QDateTime messageClockReceivedAt READ getMessageClockReceivedAt NOTIFY messageClockChanged)
-    Q_PROPERTY(QDateTime messageConfigurationReceivedAt READ getMessageConfigurationReceivedAt NOTIFY messageConfigurationChanged)
-    Q_PROPERTY(QDateTime messageErrorReceivedAt READ getMessageErrorReceivedAt NOTIFY messageErrorChanged)
-    Q_PROPERTY(QDateTime messageFilterReceivedAt READ getMessageFilterReceivedAt NOTIFY messageFilterChanged)
-    Q_PROPERTY(QDateTime messageInformationReceivedAt READ getMessageInformationReceivedAt NOTIFY messageInformationChanged)
-    Q_PROPERTY(QDateTime messageLiveReceivedAt READ getMessageLiveReceivedAt NOTIFY messageLiveChanged)
-    Q_PROPERTY(QDateTime messageOnzenLiveReceivedAt READ getMessageOnzenLiveReceivedAt NOTIFY messageOnzenLiveChanged)
-    Q_PROPERTY(QDateTime messageOnzenSettingsReceivedAt READ getMessageOnzenSettingsReceivedAt NOTIFY messageOnzenSettingsChanged)
-    Q_PROPERTY(QDateTime messagePeakReceivedAt READ getMessagePeakReceivedAt NOTIFY messagePeakChanged)
-    Q_PROPERTY(QDateTime messagePeripheralReceivedAt READ getMessagePeripheralReceivedAt NOTIFY messagePeripheralChanged)
-    Q_PROPERTY(QDateTime messageSettingsReceivedAt READ getMessageSettingsReceivedAt NOTIFY messageSettingsChanged)
+    Q_PROPERTY(QDateTime messageClockReceivedAt READ messageClockReceivedAt NOTIFY messageClockChanged)
+    Q_PROPERTY(QDateTime messageConfigurationReceivedAt READ messageConfigurationReceivedAt NOTIFY messageConfigurationChanged)
+    Q_PROPERTY(QDateTime messageErrorReceivedAt READ messageErrorReceivedAt NOTIFY messageErrorChanged)
+    Q_PROPERTY(QDateTime messageFilterReceivedAt READ messageFilterReceivedAt NOTIFY messageFilterChanged)
+    Q_PROPERTY(QDateTime messageInformationReceivedAt READ messageInformationReceivedAt NOTIFY messageInformationChanged)
+    Q_PROPERTY(QDateTime messageLiveReceivedAt READ messageLiveReceivedAt NOTIFY messageLiveChanged)
+    Q_PROPERTY(QDateTime messageOnzenLiveReceivedAt READ messageOnzenLiveReceivedAt NOTIFY messageOnzenLiveChanged)
+    Q_PROPERTY(QDateTime messageOnzenSettingsReceivedAt READ messageOnzenSettingsReceivedAt NOTIFY messageOnzenSettingsChanged)
+    Q_PROPERTY(QDateTime messagePeakReceivedAt READ messagePeakReceivedAt NOTIFY messagePeakChanged)
+    Q_PROPERTY(QDateTime messagePeripheralReceivedAt READ messagePeripheralReceivedAt NOTIFY messagePeripheralChanged)
+    Q_PROPERTY(QDateTime messageSettingsReceivedAt READ messageSettingsReceivedAt NOTIFY messageSettingsChanged)
 
 public:
     explicit Core(QObject *parent = nullptr);
     ~Core();
+
+    Q_INVOKABLE void testDiscovery();
 
 private:
     void test();
@@ -125,33 +130,33 @@ private slots:
     void onWorkerClientErrorOccurred(QAbstractSocket::SocketError socketError);
 
 public:
-    QString getClientHost() const;
-    QAbstractSocket::SocketState getClientState() const;
-    QAbstractSocket::SocketError getClientError() const;
+    QString clientHost() const;
+    QAbstractSocket::SocketState clientState() const;
+    QAbstractSocket::SocketError clientError() const;
 
-    asdc::proto::Clock getMessageClock() const;
-    asdc::proto::Configuration getMessageConfiguration() const;
-    asdc::proto::Error getMessageError() const;
-    asdc::proto::Filter getMessageFilter() const;
-    asdc::proto::Information getMessageInformation() const;
-    asdc::proto::Live getMessageLive() const;
-    asdc::proto::OnzenLive getMessageOnzenLive() const;
-    asdc::proto::OnzenSettings getMessageOnzenSettings() const;
-    asdc::proto::Peak getMessagePeak() const;
-    asdc::proto::Peripheral getMessagePeripheral() const;
-    asdc::proto::Settings getMessageSettings() const;
+    asdc::proto::Clock messageClock() const;
+    asdc::proto::Configuration messageConfiguration() const;
+    asdc::proto::Error messageError() const;
+    asdc::proto::Filter messageFilter() const;
+    asdc::proto::Information messageInformation() const;
+    asdc::proto::Live messageLive() const;
+    asdc::proto::OnzenLive messageOnzenLive() const;
+    asdc::proto::OnzenSettings messageOnzenSettings() const;
+    asdc::proto::Peak messagePeak() const;
+    asdc::proto::Peripheral messagePeripheral() const;
+    asdc::proto::Settings messageSettings() const;
 
-    QDateTime getMessageClockReceivedAt() const;
-    QDateTime getMessageConfigurationReceivedAt() const;
-    QDateTime getMessageErrorReceivedAt() const;
-    QDateTime getMessageFilterReceivedAt() const;
-    QDateTime getMessageInformationReceivedAt() const;
-    QDateTime getMessageLiveReceivedAt() const;
-    QDateTime getMessageOnzenLiveReceivedAt() const;
-    QDateTime getMessageOnzenSettingsReceivedAt() const;
-    QDateTime getMessagePeakReceivedAt() const;
-    QDateTime getMessagePeripheralReceivedAt() const;
-    QDateTime getMessageSettingsReceivedAt() const;
+    QDateTime messageClockReceivedAt() const;
+    QDateTime messageConfigurationReceivedAt() const;
+    QDateTime messageErrorReceivedAt() const;
+    QDateTime messageFilterReceivedAt() const;
+    QDateTime messageInformationReceivedAt() const;
+    QDateTime messageLiveReceivedAt() const;
+    QDateTime messageOnzenLiveReceivedAt() const;
+    QDateTime messageOnzenSettingsReceivedAt() const;
+    QDateTime messagePeakReceivedAt() const;
+    QDateTime messagePeripheralReceivedAt() const;
+    QDateTime messageSettingsReceivedAt() const;
 
 private slots:
     void setMessageClock(asdc::proto::Clock message);

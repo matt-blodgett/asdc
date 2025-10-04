@@ -8,8 +8,11 @@
 #include <QVariant>
 #include <QMap>
 #include <QDateTime>
+#include <QProtobufMessage>
 
 #include "net/client.h"
+
+
 
 // #include "asdc/proto/Clock.qpb.h"
 
@@ -18,17 +21,32 @@
 const auto ASDC_DATABASE_NAME = QLatin1String("C:/Users/matt/Desktop/asdc.db");
 
 
-const auto ASDC_SQL_CREATE_TABLE_SESSION = QLatin1String(R"(
-    CREATE TABLE "session" (
+const auto ASDC_SQL_CREATE_TABLE_PROCESS_RUN = QLatin1String(R"(
+    CREATE TABLE "process_run" (
         "id" INTEGER PRIMARY KEY,
         "created_at" DATETIME
+    )
+)");
+const auto ASDC_SQL_CREATE_TABLE_CONNECTION_SESSION = QLatin1String(R"(
+    CREATE TABLE "connection_session" (
+        "id" INTEGER PRIMARY KEY,
+        "created_at" DATETIME,
+        "process_run_id" INTEGER,
+
+        "host" TEXT,
+
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
     )
 )");
 const auto ASDC_SQL_CREATE_TABLE_MESSAGE_CLOCK = QLatin1String(R"(
     CREATE TABLE "message_clock" (
         "id" INTEGER PRIMARY KEY,
         "created_at" DATETIME,
-        "message_session_id" INTEGER,
+        "process_run_id" INTEGER,
+        "connection_session_id" INTEGER,
         "message_received_at" DATETIME,
 
         "year" INTEGER,
@@ -38,8 +56,13 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_CLOCK = QLatin1String(R"(
         "minute" INTEGER,
         "second" INTEGER,
 
-        FOREIGN KEY ("message_session_id")
-            REFERENCES "session" ("id")
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+
+        FOREIGN KEY ("connection_session_id")
+            REFERENCES "connection_session" ("id")
             ON DELETE CASCADE
             ON UPDATE CASCADE
     )
@@ -48,7 +71,8 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_CONFIGURATION = QLatin1String(R"(
     CREATE TABLE "message_configuration" (
         "id" INTEGER PRIMARY KEY,
         "created_at" DATETIME,
-        "message_session_id" INTEGER,
+        "process_run_id" INTEGER,
+        "connection_session_id" INTEGER,
         "message_received_at" DATETIME,
 
         "pump1" BOOLEAN,
@@ -74,8 +98,13 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_CONFIGURATION = QLatin1String(R"(
         "sds" BOOLEAN,
         "yess" BOOLEAN,
 
-        FOREIGN KEY ("message_session_id")
-            REFERENCES "session" ("id")
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+
+        FOREIGN KEY ("connection_session_id")
+            REFERENCES "connection_session" ("id")
             ON DELETE CASCADE
             ON UPDATE CASCADE
     )
@@ -84,7 +113,8 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_ERROR = QLatin1String(R"(
     CREATE TABLE "message_error" (
         "id" INTEGER PRIMARY KEY,
         "created_at" DATETIME,
-        "message_session_id" INTEGER,
+        "process_run_id" INTEGER,
+        "connection_session_id" INTEGER,
         "message_received_at" DATETIME,
 
         "no_flow" BOOLEAN,
@@ -98,8 +128,13 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_ERROR = QLatin1String(R"(
         "ph_high" BOOLEAN,
         "heater_probe_disconnected" BOOLEAN,
 
-        FOREIGN KEY ("message_session_id")
-            REFERENCES "session" ("id")
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+
+        FOREIGN KEY ("connection_session_id")
+            REFERENCES "connection_session" ("id")
             ON DELETE CASCADE
             ON UPDATE CASCADE
     )
@@ -108,15 +143,21 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_FILTER = QLatin1String(R"(
     CREATE TABLE "message_filter" (
         "id" INTEGER PRIMARY KEY,
         "created_at" DATETIME,
-        "message_session_id" INTEGER,
+        "process_run_id" INTEGER,
+        "connection_session_id" INTEGER,
         "message_received_at" DATETIME,
 
         "serial_nums" TEXT,
         "filter_state" INTEGER,
         "install_dates" TEXT,
 
-        FOREIGN KEY ("message_session_id")
-            REFERENCES "session" ("id")
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+
+        FOREIGN KEY ("connection_session_id")
+            REFERENCES "connection_session" ("id")
             ON DELETE CASCADE
             ON UPDATE CASCADE
     )
@@ -125,7 +166,8 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_INFORMATION = QLatin1String(R"(
     CREATE TABLE "message_information" (
         "id" INTEGER PRIMARY KEY,
         "created_at" DATETIME,
-        "message_session_id" INTEGER,
+        "process_run_id" INTEGER,
+        "connection_session_id" INTEGER,
         "message_received_at" DATETIME,
 
         "pack_serial_number" TEXT,
@@ -152,8 +194,13 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_INFORMATION = QLatin1String(R"(
         "rfid_product_id" TEXT,
         "rfid_serial_number" TEXT,
 
-        FOREIGN KEY ("message_session_id")
-            REFERENCES "session" ("id")
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+
+        FOREIGN KEY ("connection_session_id")
+            REFERENCES "connection_session" ("id")
             ON DELETE CASCADE
             ON UPDATE CASCADE
     )
@@ -162,7 +209,8 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_LIVE = QLatin1String(R"(
     CREATE TABLE "message_live" (
         "id" INTEGER PRIMARY KEY,
         "created_at" DATETIME,
-        "message_session_id" INTEGER,
+        "process_run_id" INTEGER,
+        "connection_session_id" INTEGER,
         "message_received_at" DATETIME,
 
         "temperature_fahrenheit" INTEGER,
@@ -197,8 +245,13 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_LIVE = QLatin1String(R"(
         "sds" BOOLEAN,
         "yess" BOOLEAN,
 
-        FOREIGN KEY ("message_session_id")
-            REFERENCES "session" ("id")
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+
+        FOREIGN KEY ("connection_session_id")
+            REFERENCES "connection_session" ("id")
             ON DELETE CASCADE
             ON UPDATE CASCADE
     )
@@ -207,7 +260,8 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_ONZEN_LIVE = QLatin1String(R"(
     CREATE TABLE "message_onzen_live" (
         "id" INTEGER PRIMARY KEY,
         "created_at" DATETIME,
-        "message_session_id" INTEGER,
+        "process_run_id" INTEGER,
+        "connection_session_id" INTEGER,
         "message_received_at" DATETIME,
 
         "guid" TEXT,
@@ -233,8 +287,13 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_ONZEN_LIVE = QLatin1String(R"(
         "orp_color" INTEGER,
         "electrode_wear" INTEGER,
 
-        FOREIGN KEY ("message_session_id")
-            REFERENCES "session" ("id")
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+
+        FOREIGN KEY ("connection_session_id")
+            REFERENCES "connection_session" ("id")
             ON DELETE CASCADE
             ON UPDATE CASCADE
     )
@@ -243,7 +302,8 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_ONZEN_SETTINGS = QLatin1String(R"(
     CREATE TABLE "message_onzen_settings" (
         "id" INTEGER PRIMARY KEY,
         "created_at" DATETIME,
-        "message_session_id" INTEGER,
+        "process_run_id" INTEGER,
+        "connection_session_id" INTEGER,
         "message_received_at" DATETIME,
 
         "guid" TEXT,
@@ -270,8 +330,13 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_ONZEN_SETTINGS = QLatin1String(R"(
         "sb_caution_high_ph" INTEGER,
         "sb_high_ph" INTEGER,
 
-        FOREIGN KEY ("message_session_id")
-            REFERENCES "session" ("id")
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+
+        FOREIGN KEY ("connection_session_id")
+            REFERENCES "connection_session" ("id")
             ON DELETE CASCADE
             ON UPDATE CASCADE
     )
@@ -280,7 +345,8 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_PEAK = QLatin1String(R"(
     CREATE TABLE "message_peak" (
         "id" INTEGER PRIMARY KEY,
         "created_at" DATETIME,
-        "message_session_id" INTEGER,
+        "process_run_id" INTEGER,
+        "connection_session_id" INTEGER,
         "message_received_at" DATETIME,
 
         "peaknum" INTEGER,
@@ -310,8 +376,13 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_PEAK = QLatin1String(R"(
         "thu" BOOLEAN,
         "fri" BOOLEAN,
 
-        FOREIGN KEY ("message_session_id")
-            REFERENCES "session" ("id")
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+
+        FOREIGN KEY ("connection_session_id")
+            REFERENCES "connection_session" ("id")
             ON DELETE CASCADE
             ON UPDATE CASCADE
     )
@@ -320,7 +391,8 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_PERIPHERAL = QLatin1String(R"(
     CREATE TABLE "message_peripheral" (
         "id" INTEGER PRIMARY KEY,
         "created_at" DATETIME,
-        "message_session_id" INTEGER,
+        "process_run_id" INTEGER,
+        "connection_session_id" INTEGER,
         "message_received_at" DATETIME,
 
         "guid" TEXT,
@@ -329,8 +401,13 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_PERIPHERAL = QLatin1String(R"(
         "product_code" INTEGER,
         "connected" BOOLEAN,
 
-        FOREIGN KEY ("message_session_id")
-            REFERENCES "session" ("id")
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+
+        FOREIGN KEY ("connection_session_id")
+            REFERENCES "connection_session" ("id")
             ON DELETE CASCADE
             ON UPDATE CASCADE
     )
@@ -339,7 +416,8 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_SETTINGS = QLatin1String(R"(
     CREATE TABLE "message_settings" (
         "id" INTEGER PRIMARY KEY,
         "created_at" DATETIME,
-        "message_session_id" INTEGER,
+        "process_run_id" INTEGER,
+        "connection_session_id" INTEGER,
         "message_received_at" DATETIME,
 
         "max_filtration_frequency" INTEGER,
@@ -369,8 +447,13 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_SETTINGS = QLatin1String(R"(
         "filtration_offset" INTEGER,
         "spaboy_hours" INTEGER,
 
-        FOREIGN KEY ("message_session_id")
-            REFERENCES "session" ("id")
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+
+        FOREIGN KEY ("connection_session_id")
+            REFERENCES "connection_session" ("id")
             ON DELETE CASCADE
             ON UPDATE CASCADE
     )
@@ -430,14 +513,15 @@ bool DatabaseClient::openDatabase(const bool &overwrite) {
         initializeSchema();
     }
 
-    createSession();
+    createProcessRun();
 
     return true;
 }
 
 bool DatabaseClient::validateSchema() {
     const QStringList tables = {
-        "session",
+        "process_run",
+        "connection_session",
         "message_clock"
     };
     for (const QString &table : tables) {
@@ -453,7 +537,9 @@ bool DatabaseClient::validateSchema() {
 void DatabaseClient::initializeSchema() {
     QSqlQuery query(m_database);
 
-    query.exec(ASDC_SQL_CREATE_TABLE_SESSION);
+    query.exec(ASDC_SQL_CREATE_TABLE_PROCESS_RUN);
+    query.exec(ASDC_SQL_CREATE_TABLE_CONNECTION_SESSION);
+
     query.exec(ASDC_SQL_CREATE_TABLE_MESSAGE_CLOCK);
     query.exec(ASDC_SQL_CREATE_TABLE_MESSAGE_CONFIGURATION);
     query.exec(ASDC_SQL_CREATE_TABLE_MESSAGE_ERROR);
@@ -468,19 +554,41 @@ void DatabaseClient::initializeSchema() {
 
     qDebug() << "schema initialized";
 }
-void DatabaseClient::createSession() {
+void DatabaseClient::createProcessRun() {
     QSqlQuery query(m_database);
 
     query.exec(QLatin1String(R"(
-        INSERT INTO "session" (
+        INSERT INTO "process_run" (
            "created_at"
         )
         VALUES (DATETIME('now'))
     )"));
 
-    m_sessionId = query.lastInsertId();
+    m_processRunId = query.lastInsertId();
 
-    qDebug() << "created session id" << m_sessionId.toLongLong();
+    qDebug() << "created processRunId" << m_processRunId.toLongLong();
+}
+void DatabaseClient::createConnectionSession(const QString &host) {
+    QSqlQuery query(m_database);
+
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "connection_session" (
+            "created_at",
+            "process_run_id",
+
+            "host"
+        )
+        VALUES (DATETIME('now'), ?, ?)
+    )"));
+
+    int pos = 0;
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, host);
+    query.exec();
+
+    m_connectionSessionId = query.lastInsertId();
+
+    qDebug() << "created connectionSessionId" << m_connectionSessionId.toLongLong();
 }
 
 void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QProtobufMessage *message, const QDateTime &messageReceivedAt) {
@@ -492,7 +600,8 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
         query.prepare(QLatin1String(R"(
             INSERT INTO "message_clock" (
                 "created_at",
-                "message_session_id",
+                "process_run_id",
+                "connection_session_id",
                 "message_received_at",
 
                 "year",
@@ -502,12 +611,13 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
                 "minute",
                 "second"
             )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?)
         )"));
 
         int pos = 0;
 
-        query.bindValue(pos++, m_sessionId);
+        query.bindValue(pos++, m_processRunId);
+        query.bindValue(pos++, m_connectionSessionId);
         query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
         query.bindValue(pos++, message->property("year").toInt());
@@ -522,7 +632,8 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
         query.prepare(QLatin1String(R"(
             INSERT INTO "message_configuration" (
                 "created_at",
-                "message_session_id",
+                "process_run_id",
+                "connection_session_id",
                 "message_received_at",
 
                 "pump1",
@@ -548,12 +659,13 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
                 "sds",
                 "yess"
             )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         )"));
 
         int pos = 0;
 
-        query.bindValue(pos++, m_sessionId);
+        query.bindValue(pos++, m_processRunId);
+        query.bindValue(pos++, m_connectionSessionId);
         query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
         query.bindValue(pos++, message->property("pump1").toBool());
@@ -584,7 +696,8 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
         query.prepare(QLatin1String(R"(
             INSERT INTO "message_error" (
                 "created_at",
-                "message_session_id",
+                "process_run_id",
+                "connection_session_id",
                 "message_received_at",
 
                 "no_flow",
@@ -598,12 +711,13 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
                 "ph_high",
                 "heater_probe_disconnected"
             )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         )"));
 
         int pos = 0;
 
-        query.bindValue(pos++, m_sessionId);
+        query.bindValue(pos++, m_processRunId);
+        query.bindValue(pos++, m_connectionSessionId);
         query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
         query.bindValue(pos++, message->property("noFlow").toBool());
@@ -622,19 +736,21 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
         query.prepare(QLatin1String(R"(
             INSERT INTO "message_filter" (
                 "created_at",
-                "message_session_id",
+                "process_run_id",
+                "connection_session_id",
                 "message_received_at",
 
                 "serial_nums",
                 "filter_state",
                 "install_dates"
             )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?)
+            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?)
         )"));
 
         int pos = 0;
 
-        query.bindValue(pos++, m_sessionId);
+        query.bindValue(pos++, m_processRunId);
+        query.bindValue(pos++, m_connectionSessionId);
         query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
         query.bindValue(pos++, message->property("serialNums").toString());
@@ -646,7 +762,8 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
         query.prepare(QLatin1String(R"(
             INSERT INTO "message_information" (
                 "created_at",
-                "message_session_id",
+                "process_run_id",
+                "connection_session_id",
                 "message_received_at",
 
                 "pack_serial_number",
@@ -673,12 +790,13 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
                 "rfid_product_id",
                 "rfid_serial_number"
             )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         )"));
 
         int pos = 0;
 
-        query.bindValue(pos++, m_sessionId);
+        query.bindValue(pos++, m_processRunId);
+        query.bindValue(pos++, m_connectionSessionId);
         query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
         query.bindValue(pos++, message->property("packSerialNumber").toString());
@@ -710,7 +828,8 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
         query.prepare(QLatin1String(R"(
             INSERT INTO "message_live" (
                 "created_at",
-                "message_session_id",
+                "process_run_id",
+                "connection_session_id",
                 "message_received_at",
 
                 "temperature_fahrenheit",
@@ -745,12 +864,13 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
                 "sds",
                 "yess"
             )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         )"));
 
         int pos = 0;
 
-        query.bindValue(pos++, m_sessionId);
+        query.bindValue(pos++, m_processRunId);
+        query.bindValue(pos++, m_connectionSessionId);
         query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
         query.bindValue(pos++, message->property("temperatureFahrenheit").toInt());
@@ -790,7 +910,8 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
         query.prepare(QLatin1String(R"(
             INSERT INTO "message_onzen_live" (
                 "created_at",
-                "message_session_id",
+                "process_run_id",
+                "connection_session_id",
                 "message_received_at",
 
                 "guid",
@@ -816,12 +937,13 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
                 "orp_color",
                 "electrode_wear"
             )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         )"));
 
         int pos = 0;
 
-        query.bindValue(pos++, m_sessionId);
+        query.bindValue(pos++, m_processRunId);
+        query.bindValue(pos++, m_connectionSessionId);
         query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
         query.bindValue(pos++, message->property("guid").toString());
@@ -852,7 +974,8 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
         query.prepare(QLatin1String(R"(
             INSERT INTO "message_onzen_settings" (
                 "created_at",
-                "message_session_id",
+                "process_run_id",
+                "connection_session_id",
                 "message_received_at",
 
                 "guid",
@@ -879,12 +1002,13 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
                 "sb_caution_high_ph",
                 "sb_high_ph"
             )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         )"));
 
         int pos = 0;
 
-        query.bindValue(pos++, m_sessionId);
+        query.bindValue(pos++, m_processRunId);
+        query.bindValue(pos++, m_connectionSessionId);
         query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
         query.bindValue(pos++, message->property("guid").toString());
@@ -916,7 +1040,8 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
         query.prepare(QLatin1String(R"(
             INSERT INTO "message_peak" (
                 "created_at",
-                "message_session_id",
+                "process_run_id",
+                "connection_session_id",
                 "message_received_at",
 
                 "peaknum",
@@ -946,12 +1071,13 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
                 "thu",
                 "fri"
             )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         )"));
 
         int pos = 0;
 
-        query.bindValue(pos++, m_sessionId);
+        query.bindValue(pos++, m_processRunId);
+        query.bindValue(pos++, m_connectionSessionId);
         query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
         query.bindValue(pos++, message->property("peaknum").toInt());
@@ -986,7 +1112,8 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
         query.prepare(QLatin1String(R"(
             INSERT INTO "message_peripheral" (
                 "created_at",
-                "message_session_id",
+                "process_run_id",
+                "connection_session_id",
                 "message_received_at",
 
                 "guid",
@@ -995,12 +1122,13 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
                 "product_code",
                 "connected"
             )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?)
+            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?)
         )"));
 
         int pos = 0;
 
-        query.bindValue(pos++, m_sessionId);
+        query.bindValue(pos++, m_processRunId);
+        query.bindValue(pos++, m_connectionSessionId);
         query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
         query.bindValue(pos++, message->property("guid").toString());
@@ -1014,7 +1142,8 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
         query.prepare(QLatin1String(R"(
             INSERT INTO "message_settings" (
                 "created_at",
-                "message_session_id",
+                "process_run_id",
+                "connection_session_id",
                 "message_received_at",
 
                 "max_filtration_frequency",
@@ -1044,12 +1173,13 @@ void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QPr
                 "filtration_offset",
                 "spaboy_hours"
             )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         )"));
 
         int pos = 0;
 
-        query.bindValue(pos++, m_sessionId);
+        query.bindValue(pos++, m_processRunId);
+        query.bindValue(pos++, m_connectionSessionId);
         query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
         query.bindValue(pos++, message->property("maxFiltrationFrequency").toInt());

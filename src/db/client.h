@@ -22,20 +22,23 @@ class DatabaseClient : public QObject
 public:
     explicit DatabaseClient(QObject *parent = nullptr);
 
+public:
     bool openDatabase(const bool &overwrite = false);
 
 private:
     bool validateSchema();
     void initializeSchema();
-    void createSession();
+    void createProcessRun();
 
 public slots:
+    void createConnectionSession(const QString &host);
     void writeMessage(const asdc::net::MessageType &messageType, QProtobufMessage *message, const QDateTime &messageReceivedAt);
 
 private:
     QSqlDatabase m_database;
 
-    QVariant m_sessionId;
+    QVariant m_processRunId;
+    QVariant m_connectionSessionId;
 
 signals:
 };

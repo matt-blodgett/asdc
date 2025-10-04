@@ -16,15 +16,8 @@ ApplicationWindow {
         Menu {
             title: qsTr("File")
             MenuItem {
-                text: "Test"
-                onTriggered: {
-                    console.log("test")
-                }
-            }
-            MenuSeparator {}
-            MenuItem {
-                text: "&Open"
-                onTriggered: console.log("Open action triggered")
+                text: "Test Discovery"
+                onTriggered: core.testDiscovery()
             }
             MenuSeparator {}
             MenuItem {
