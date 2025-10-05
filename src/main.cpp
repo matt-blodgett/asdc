@@ -48,8 +48,12 @@ int main(int argc, char *argv[])
         Qt::QueuedConnection
     );
 
-    asdc::core::Core *core = new asdc::core::Core(&app);
+    asdc::core::CoreInterface *core = new asdc::core::CoreInterface(&app);
     engine.rootContext()->setContextProperty("core", core);
+
+    // asdc::core::CommandsInterface *commands = new asdc::core::CommandsInterface(&app);
+    // engine.rootContext()->setContextProperty("commands", commands);
+
     engine.loadFromModule("asdc.qml", "Main");
 
     return app.exec();

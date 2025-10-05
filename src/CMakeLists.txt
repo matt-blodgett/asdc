@@ -33,25 +33,14 @@ qt_add_qml_module(asdc
         qml/pages/SqlBrowserPage.qml
 
         qml/Main.qml
-    RESOURCES
-        assets/icons/check_circle.svg
-        assets/icons/error_circle.svg
-        assets/icons/progress_circle.svg
 )
 
-# # Resources:
-# set(masterdetail_resource_files
-#     "images/icon.png"
-#     "images/image.png"
-#     "albumdetails.xml"
-# )
+qt_add_resources(assets qml/assets/assets.qrc)
+target_sources(asdc PRIVATE ${assets})
 
-# qt_add_resources(masterdetail "masterdetail"
-#     PREFIX
-#         "/"
-#     FILES
-#         ${masterdetail_resource_files}
-# )
+if(WIN32)
+    target_sources(asdc PRIVATE qml/assets/win32.rc)
+endif()
 
 qt_add_protobuf(asdc_proto
     QML

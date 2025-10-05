@@ -78,7 +78,7 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             text: "Refresh"
             // icon.source: "qrc:/assets/icons/refresh.svg"
-            enabled: core.clientState === SocketState.ConnectedState
+            enabled: core.networkState === SocketState.ConnectedState
             onReleased: {
                 core.refreshMessageLive()
                 core.refreshMessageOnzenLive()

@@ -1,12 +1,17 @@
 #include "client.h"
 
 #include <QTcpSocket>
-#include <QDebug>
+
+#include <QDateTime>
 
 #include "packet.h"
 
+#include "asdc/proto/Command.qpb.h"
 
-static const qint32 HEADER_SIZE = 20;
+
+#include <QDebug>
+
+
 
 
 void printHex(const QByteArray &data) {
@@ -187,13 +192,13 @@ QAbstractSocket::SocketError NetworkClient::error() const {
 //     qDebug() << "payload =" << payload;
 //     qDebug() << "remainder =" << remainder;
 // }
-bool NetworkClient::requestMessage(const MessageType &messageType) {
+bool NetworkClient::writePacket(const MessageType &messageType, const QByteArray &payload) {
     if (!isConnected()) {
         qWarning() << "socket not connected!";
         return false;
     }
 
-    Packet packet(static_cast<qint32>(messageType));
+    Packet packet(static_cast<qint16>(messageType), payload);
     QByteArray packetBytes = packet.serialize();
 
     qDebug() << "writing message type" << messageType;
@@ -206,6 +211,7 @@ bool NetworkClient::requestMessage(const MessageType &messageType) {
 
     return true;
 }
+
 void NetworkClient::readAndParseData() {
     qDebug() << "data ready to read from host:" << m_socket->bytesAvailable() << "bytes";
 
@@ -228,6 +234,129 @@ void NetworkClient::readAndParseData() {
         data = remainder;
     }
 }
+
+
+
+NetworkClientWorker::NetworkClientWorker(QObject *parent)
+    : QObject{parent}
+{
+    m_networkClient = new NetworkClient(this);
+
+    connect(m_networkClient, &NetworkClient::hostChanged, this, &NetworkClientWorker::hostChanged);
+    connect(m_networkClient, &NetworkClient::portChanged, this, &NetworkClientWorker::portChanged);
+    connect(m_networkClient, &NetworkClient::connected, this, &NetworkClientWorker::connected);
+    connect(m_networkClient, &NetworkClient::disconnected, this, &NetworkClientWorker::disconnected);
+    connect(m_networkClient, &NetworkClient::stateChanged, this, &NetworkClientWorker::stateChanged);
+    connect(m_networkClient, &NetworkClient::errorOccurred, this, &NetworkClientWorker::errorOccurred);
+    connect(m_networkClient, &NetworkClient::headerReceived, this, &NetworkClientWorker::onHeaderReceived);
+};
+
+void NetworkClientWorker::connectToDevice(const QString &host) {
+    m_networkClient->connectToDevice(host);
+}
+void NetworkClientWorker::disconnectFromDevice() {
+    m_networkClient->disconnectFromDevice();
+}
+
+void NetworkClientWorker::queueMessage(const MessageType &messageType) {
+    qDebug() << "requesting message" << messageType;
+    m_networkClient->writePacket(messageType);
+}
+void NetworkClientWorker::queueCommand(const QString &name, const QVariant &value) {
+    asdc::proto::Command command;
+    command.setProperty(name, value);
+
+    QByteArray payload = command.serialize(&m_serializer);
+    if (serializerHasError()) {
+        return;
+    }
+
+    qDebug() << "requesting command:" << name << "->" << value;
+    m_networkClient->writePacket(MessageType::COMMAND, payload);
+}
+
+bool NetworkClientWorker::serializerHasError() {
+    if (m_serializer.lastError() != QAbstractProtobufSerializer::Error::None) {
+        qWarning().nospace()
+        << "Unable to deserialize ("
+        << qToUnderlying(m_serializer.lastError()) << ")"
+        << m_serializer.lastErrorString();
+        return true;
+    }
+    return false;
+}
+void NetworkClientWorker::onHeaderReceived(const Header &header) {
+    MessageType messageType = static_cast<MessageType>(header.messageType);
+
+    if (messageType == MessageType::CLOCK) {
+        asdc::proto::Clock message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!serializerHasError()) {
+            emit receivedMessageClock(message, QDateTime::currentDateTime());
+        }
+    } else if (messageType == MessageType::CONFIGURATION) {
+        asdc::proto::Configuration message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!serializerHasError()) {
+            emit receivedMessageConfiguration(message, QDateTime::currentDateTime());
+        }
+    } else if (messageType == MessageType::ERROR) {
+        asdc::proto::Error message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!serializerHasError()) {
+            emit receivedMessageError(message, QDateTime::currentDateTime());
+        }
+    } else if (messageType == MessageType::FILTERS) {
+        asdc::proto::Filter message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!serializerHasError()) {
+            emit receivedMessageFilter(message, QDateTime::currentDateTime());
+        }
+    } else if (messageType == MessageType::INFORMATION) {
+        asdc::proto::Information message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!serializerHasError()) {
+            emit receivedMessageInformation(message, QDateTime::currentDateTime());
+        }
+    } else if (messageType == MessageType::LIVE) {
+        asdc::proto::Live message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!serializerHasError()) {
+            emit receivedMessageLive(message, QDateTime::currentDateTime());
+        }
+    } else if (messageType == MessageType::ONZEN_LIVE) {
+        asdc::proto::OnzenLive message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!serializerHasError()) {
+            emit receivedMessageOnzenLive(message, QDateTime::currentDateTime());
+        }
+    } else if (messageType == MessageType::ONZEN_SETTINGS) {
+        asdc::proto::OnzenSettings message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!serializerHasError()) {
+            emit receivedMessageOnzenSettings(message, QDateTime::currentDateTime());
+        }
+    } else if (messageType == MessageType::PEAK) {
+        asdc::proto::Peak message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!serializerHasError()) {
+            emit receivedMessagePeak(message, QDateTime::currentDateTime());
+        }
+    } else if (messageType == MessageType::PERIPHERAL) {
+        asdc::proto::Peripheral message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!serializerHasError()) {
+            emit receivedMessagePeripheral(message, QDateTime::currentDateTime());
+        }
+    } else if (messageType == MessageType::SETTINGS) {
+        asdc::proto::Settings message;
+        message.deserialize(&m_serializer, header.payload);
+        if (!serializerHasError()) {
+            emit receivedMessageSettings(message, QDateTime::currentDateTime());
+        }
+    }
+}
+
 
 };  // namespace asdc::net
 

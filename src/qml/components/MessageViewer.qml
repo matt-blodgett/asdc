@@ -564,11 +564,13 @@ Item {
                                 id: refreshButton
                                 implicitWidth: 120
                                 text: "Refresh"
-                                enabled: core.clientState === SocketState.ConnectedState
+                                icon.source: "qrc:/assets/icons/refresh-cw.svg"
+                                icon.width: 16; icon.height: 16;
+                                enabled: core.networkState === SocketState.ConnectedState
                                 onReleased: {
                                     const currentMessageName = messageTableView.currentMessageName
                                     if (!currentMessageName) {
-                                        return ""
+                                        return
                                     }
                                     console.log(`refreshing message "${currentMessageName}"`)
                                     core[`refreshMessage${currentMessageName}`]()

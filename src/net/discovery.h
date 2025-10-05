@@ -14,32 +14,35 @@ class DiscoveryClient : public QObject
 public:
     explicit DiscoveryClient(QObject *parent = nullptr);
 
-    void test();
+public:
+    void search(const QString &ipAddress = QString(),
+                int netmaskCidr = 24,
+                int timeoutMs = 1000,
+                int maxWorkers = 50
+    );
 
-    void setIpAndMask(QString ipAddress, int netmaskCidr);
+signals:
+    void hostFound(const QString &host);
+};
 
 
-    // Returns a list of IPs (as strings) that responded with the expected prefix.
-    // timeoutMs applies per-host probe; maxWorkers limits concurrency.
-    QStringList search(int timeoutMs = 1000, int maxWorkers = 50) const;
+class DiscoveryClientWorker : public QObject
+{
+    Q_OBJECT
 
-    static constexpr quint16 QUERY_PORT    = 9131;
-    static constexpr quint16 RESPONSE_PORT = 33327;
+public:
+    explicit DiscoveryClientWorker(QObject *parent = nullptr);
+
+public slots:
+    void search();
 
 private:
-    static bool udpProbe(const QString& host,
-                         const QByteArray& query,
-                         quint16 queryPort,
-                         const QByteArray& responsePrefix,
-                         int timeoutMs);
+    DiscoveryClient *m_discoveryClient;
 
-    QStringList enumerateHosts() const;  // hosts in subnet
-
-private:
-    QString m_ip;
-    int m_prefix;
-
-
+signals:
+    void startedSearch();
+    void finishedSearch();
+    void hostFound(const QString &host);
 };
 
 };  // namespace asdc::net

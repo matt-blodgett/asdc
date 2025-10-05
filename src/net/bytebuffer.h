@@ -23,6 +23,7 @@ public:
     QByteArray& getBuffer();
 
     void putIntAt(qint64 pos, qint32 value);
+    void putBytesAt(qint64 pos, const QByteArray& value);
 
 private:
     QByteArray m_buffer;

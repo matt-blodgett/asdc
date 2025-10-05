@@ -38,6 +38,7 @@ Item {
                 model: [
                     { text: "ProcessRun", value: "process_run" },
                     { text: "ConnectionSession", value: "connection_session" },
+                    { text: "CommandRequest", value: "command_request" },
                     { text: "Clock", value: "message_clock" },
                     { text: "Configuration", value: "message_configuration" },
                     { text: "Error", value: "message_error" },

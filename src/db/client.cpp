@@ -8,10 +8,6 @@
 #include <QVariant>
 #include <QMap>
 #include <QDateTime>
-#include <QProtobufMessage>
-
-#include "net/client.h"
-
 
 
 // #include "asdc/proto/Clock.qpb.h"
@@ -459,6 +455,29 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_SETTINGS = QLatin1String(R"(
     )
 )");
 
+const auto ASDC_SQL_CREATE_TABLE_COMMAND_REQUEST = QLatin1String(R"(
+    CREATE TABLE "command_request" (
+        "id" INTEGER PRIMARY KEY,
+        "created_at" DATETIME,
+        "process_run_id" INTEGER,
+        "connection_session_id" INTEGER,
+        "command_sent_at" DATETIME,
+
+        "name" TEXT,
+        "value_from" TEXT,
+        "value_to" TEXT,
+
+        FOREIGN KEY ("process_run_id")
+            REFERENCES "process_run" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+
+        FOREIGN KEY ("connection_session_id")
+            REFERENCES "connection_session" ("id")
+            ON DELETE CASCADE
+            ON UPDATE CASCADE
+    )
+)");
 
 
 // static const QMap<QString, QMetaType::Type> messageFieldsClock() {
@@ -473,6 +492,18 @@ const auto ASDC_SQL_CREATE_TABLE_MESSAGE_SETTINGS = QLatin1String(R"(
 //     return messageFields;
 // }
 
+
+// #include "asdc/proto/Clock.qpb.h"
+// #include "asdc/proto/Configuration.qpb.h"
+// #include "asdc/proto/Error.qpb.h"
+// #include "asdc/proto/Filter.qpb.h"
+// #include "asdc/proto/Information.qpb.h"
+// #include "asdc/proto/Live.qpb.h"
+// #include "asdc/proto/OnzenLive.qpb.h"
+// #include "asdc/proto/OnzenSettings.qpb.h"
+// #include "asdc/proto/Peak.qpb.h"
+// #include "asdc/proto/Peripheral.qpb.h"
+// #include "asdc/proto/Settings.qpb.h"
 
 
 namespace asdc::db {
@@ -552,8 +583,11 @@ void DatabaseClient::initializeSchema() {
     query.exec(ASDC_SQL_CREATE_TABLE_MESSAGE_PERIPHERAL);
     query.exec(ASDC_SQL_CREATE_TABLE_MESSAGE_SETTINGS);
 
+    query.exec(ASDC_SQL_CREATE_TABLE_COMMAND_REQUEST);
+
     qDebug() << "schema initialized";
 }
+
 void DatabaseClient::createProcessRun() {
     QSqlQuery query(m_database);
 
@@ -591,678 +625,706 @@ void DatabaseClient::createConnectionSession(const QString &host) {
     qDebug() << "created connectionSessionId" << m_connectionSessionId.toLongLong();
 }
 
-void DatabaseClient::writeMessage(const asdc::net::MessageType &messageType, QProtobufMessage *message, const QDateTime &messageReceivedAt) {
+void DatabaseClient::logMessageClock(const asdc::proto::Clock &message, const QDateTime &messageReceivedAt) {
     QSqlQuery query(m_database);
 
-    qDebug() << "writing message" << messageType;
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "message_clock" (
+            "created_at",
+            "process_run_id",
+            "connection_session_id",
+            "message_received_at",
 
-    if (messageType == asdc::net::MessageType::CLOCK) {
-        query.prepare(QLatin1String(R"(
-            INSERT INTO "message_clock" (
-                "created_at",
-                "process_run_id",
-                "connection_session_id",
-                "message_received_at",
+            "year",
+            "month",
+            "day",
+            "hour",
+            "minute",
+            "second"
+        )
+        VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    )"));
 
-                "year",
-                "month",
-                "day",
-                "hour",
-                "minute",
-                "second"
-            )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        )"));
+    int pos = 0;
 
-        int pos = 0;
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, m_connectionSessionId);
+    query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
-        query.bindValue(pos++, m_processRunId);
-        query.bindValue(pos++, m_connectionSessionId);
-        query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+    query.bindValue(pos++, message.property("year").toInt());
+    query.bindValue(pos++, message.property("month").toInt());
+    query.bindValue(pos++, message.property("day").toInt());
+    query.bindValue(pos++, message.property("hour").toInt());
+    query.bindValue(pos++, message.property("minute").toInt());
+    query.bindValue(pos++, message.property("second").toInt());
 
-        query.bindValue(pos++, message->property("year").toInt());
-        query.bindValue(pos++, message->property("month").toInt());
-        query.bindValue(pos++, message->property("day").toInt());
-        query.bindValue(pos++, message->property("hour").toInt());
-        query.bindValue(pos++, message->property("minute").toInt());
-        query.bindValue(pos++, message->property("second").toInt());
+    query.exec();
 
-        query.exec();
-    } else if (messageType == asdc::net::MessageType::CONFIGURATION) {
-        query.prepare(QLatin1String(R"(
-            INSERT INTO "message_configuration" (
-                "created_at",
-                "process_run_id",
-                "connection_session_id",
-                "message_received_at",
+    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+}
+void DatabaseClient::logMessageConfiguration(const asdc::proto::Configuration &message, const QDateTime &messageReceivedAt) {
+    QSqlQuery query(m_database);
 
-                "pump1",
-                "pump2",
-                "pump3",
-                "pump4",
-                "pump5",
-                "blower1",
-                "blower2",
-                "lights",
-                "stereo",
-                "heater1",
-                "heater2",
-                "filter",
-                "onzen",
-                "ozone_peak_1",
-                "ozone_peak_2",
-                "exhaust_fan",
-                "powerlines",
-                "breaker_size",
-                "smart_onzen",
-                "fogger",
-                "sds",
-                "yess"
-            )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        )"));
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "message_configuration" (
+            "created_at",
+            "process_run_id",
+            "connection_session_id",
+            "message_received_at",
 
-        int pos = 0;
+            "pump1",
+            "pump2",
+            "pump3",
+            "pump4",
+            "pump5",
+            "blower1",
+            "blower2",
+            "lights",
+            "stereo",
+            "heater1",
+            "heater2",
+            "filter",
+            "onzen",
+            "ozone_peak_1",
+            "ozone_peak_2",
+            "exhaust_fan",
+            "powerlines",
+            "breaker_size",
+            "smart_onzen",
+            "fogger",
+            "sds",
+            "yess"
+        )
+        VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    )"));
 
-        query.bindValue(pos++, m_processRunId);
-        query.bindValue(pos++, m_connectionSessionId);
-        query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+    int pos = 0;
 
-        query.bindValue(pos++, message->property("pump1").toBool());
-        query.bindValue(pos++, message->property("pump2").toBool());
-        query.bindValue(pos++, message->property("pump3").toBool());
-        query.bindValue(pos++, message->property("pump4").toBool());
-        query.bindValue(pos++, message->property("pump5").toBool());
-        query.bindValue(pos++, message->property("blower1").toBool());
-        query.bindValue(pos++, message->property("blower2").toBool());
-        query.bindValue(pos++, message->property("lights").toBool());
-        query.bindValue(pos++, message->property("stereo").toBool());
-        query.bindValue(pos++, message->property("heater1").toBool());
-        query.bindValue(pos++, message->property("heater2").toBool());
-        query.bindValue(pos++, message->property("filter").toBool());
-        query.bindValue(pos++, message->property("onzen").toBool());
-        query.bindValue(pos++, message->property("ozonePeak1").toBool());
-        query.bindValue(pos++, message->property("ozonePeak2").toBool());
-        query.bindValue(pos++, message->property("exhaustFan").toBool());
-        query.bindValue(pos++, message->property("powerlines").toInt());
-        query.bindValue(pos++, message->property("breakerSize").toInt());
-        query.bindValue(pos++, message->property("smartOnzen").toInt());
-        query.bindValue(pos++, message->property("fogger").toBool());
-        query.bindValue(pos++, message->property("sds").toBool());
-        query.bindValue(pos++, message->property("yess").toBool());
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, m_connectionSessionId);
+    query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
-        query.exec();
-    } else if (messageType == asdc::net::MessageType::ERROR) {
-        query.prepare(QLatin1String(R"(
-            INSERT INTO "message_error" (
-                "created_at",
-                "process_run_id",
-                "connection_session_id",
-                "message_received_at",
+    query.bindValue(pos++, message.property("pump1").toBool());
+    query.bindValue(pos++, message.property("pump2").toBool());
+    query.bindValue(pos++, message.property("pump3").toBool());
+    query.bindValue(pos++, message.property("pump4").toBool());
+    query.bindValue(pos++, message.property("pump5").toBool());
+    query.bindValue(pos++, message.property("blower1").toBool());
+    query.bindValue(pos++, message.property("blower2").toBool());
+    query.bindValue(pos++, message.property("lights").toBool());
+    query.bindValue(pos++, message.property("stereo").toBool());
+    query.bindValue(pos++, message.property("heater1").toBool());
+    query.bindValue(pos++, message.property("heater2").toBool());
+    query.bindValue(pos++, message.property("filter").toBool());
+    query.bindValue(pos++, message.property("onzen").toBool());
+    query.bindValue(pos++, message.property("ozonePeak1").toBool());
+    query.bindValue(pos++, message.property("ozonePeak2").toBool());
+    query.bindValue(pos++, message.property("exhaustFan").toBool());
+    query.bindValue(pos++, message.property("powerlines").toInt());
+    query.bindValue(pos++, message.property("breakerSize").toInt());
+    query.bindValue(pos++, message.property("smartOnzen").toInt());
+    query.bindValue(pos++, message.property("fogger").toBool());
+    query.bindValue(pos++, message.property("sds").toBool());
+    query.bindValue(pos++, message.property("yess").toBool());
 
-                "no_flow",
-                "flow_switch",
-                "heater_over_temperature",
-                "spa_over_temperature",
-                "spa_temperature_probe",
-                "spa_high_limit",
-                "eeprom",
-                "freeze_protect",
-                "ph_high",
-                "heater_probe_disconnected"
-            )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        )"));
+    query.exec();
 
-        int pos = 0;
+    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+}
+void DatabaseClient::logMessageError(const asdc::proto::Error &message, const QDateTime &messageReceivedAt) {
+    QSqlQuery query(m_database);
 
-        query.bindValue(pos++, m_processRunId);
-        query.bindValue(pos++, m_connectionSessionId);
-        query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "message_error" (
+            "created_at",
+            "process_run_id",
+            "connection_session_id",
+            "message_received_at",
 
-        query.bindValue(pos++, message->property("noFlow").toBool());
-        query.bindValue(pos++, message->property("flowSwitch").toBool());
-        query.bindValue(pos++, message->property("heaterOverTemperature").toBool());
-        query.bindValue(pos++, message->property("spaOverTemperature").toBool());
-        query.bindValue(pos++, message->property("spaTemperatureProbe").toBool());
-        query.bindValue(pos++, message->property("spaHighLimit").toBool());
-        query.bindValue(pos++, message->property("eeprom").toBool());
-        query.bindValue(pos++, message->property("freezeProtect").toBool());
-        query.bindValue(pos++, message->property("phHigh").toBool());
-        query.bindValue(pos++, message->property("heaterProbeDisconnected").toBool());
+            "no_flow",
+            "flow_switch",
+            "heater_over_temperature",
+            "spa_over_temperature",
+            "spa_temperature_probe",
+            "spa_high_limit",
+            "eeprom",
+            "freeze_protect",
+            "ph_high",
+            "heater_probe_disconnected"
+        )
+        VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    )"));
 
-        query.exec();
-    } else if (messageType == asdc::net::MessageType::FILTERS) {
-        query.prepare(QLatin1String(R"(
-            INSERT INTO "message_filter" (
-                "created_at",
-                "process_run_id",
-                "connection_session_id",
-                "message_received_at",
+    int pos = 0;
 
-                "serial_nums",
-                "filter_state",
-                "install_dates"
-            )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?)
-        )"));
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, m_connectionSessionId);
+    query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
-        int pos = 0;
+    query.bindValue(pos++, message.property("noFlow").toBool());
+    query.bindValue(pos++, message.property("flowSwitch").toBool());
+    query.bindValue(pos++, message.property("heaterOverTemperature").toBool());
+    query.bindValue(pos++, message.property("spaOverTemperature").toBool());
+    query.bindValue(pos++, message.property("spaTemperatureProbe").toBool());
+    query.bindValue(pos++, message.property("spaHighLimit").toBool());
+    query.bindValue(pos++, message.property("eeprom").toBool());
+    query.bindValue(pos++, message.property("freezeProtect").toBool());
+    query.bindValue(pos++, message.property("phHigh").toBool());
+    query.bindValue(pos++, message.property("heaterProbeDisconnected").toBool());
 
-        query.bindValue(pos++, m_processRunId);
-        query.bindValue(pos++, m_connectionSessionId);
-        query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+    query.exec();
 
-        query.bindValue(pos++, message->property("serialNums").toString());
-        query.bindValue(pos++, message->property("filterState").toInt());
-        query.bindValue(pos++, message->property("installDates").toString());
+    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+}
+void DatabaseClient::logMessageFilter(const asdc::proto::Filter &message, const QDateTime &messageReceivedAt) {
+    QSqlQuery query(m_database);
 
-        query.exec();
-    } else if (messageType == asdc::net::MessageType::INFORMATION) {
-        query.prepare(QLatin1String(R"(
-            INSERT INTO "message_information" (
-                "created_at",
-                "process_run_id",
-                "connection_session_id",
-                "message_received_at",
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "message_filter" (
+            "created_at",
+            "process_run_id",
+            "connection_session_id",
+            "message_received_at",
 
-                "pack_serial_number",
-                "pack_firmware_version",
-                "pack_hardware_version",
-                "pack_product_id",
-                "pack_board_id",
-                "topside_product_id",
-                "topside_software_version",
-                "guid",
-                "spa_type",
-                "website_registration",
-                "website_registration_confirm",
-                "mac_address",
-                "firmware_version",
-                "product_code",
-                "var_software_version",
-                "spaboy_firmware_version",
-                "spaboy_hardware_version",
-                "spaboy_product_id",
-                "spaboy_serial_number",
-                "rfid_firmware_version",
-                "rfid_hardware_version",
-                "rfid_product_id",
-                "rfid_serial_number"
-            )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        )"));
+            "serial_nums",
+            "filter_state",
+            "install_dates"
+        )
+        VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?)
+    )"));
 
-        int pos = 0;
+    int pos = 0;
 
-        query.bindValue(pos++, m_processRunId);
-        query.bindValue(pos++, m_connectionSessionId);
-        query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, m_connectionSessionId);
+    query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
-        query.bindValue(pos++, message->property("packSerialNumber").toString());
-        query.bindValue(pos++, message->property("packFirmwareVersion").toString());
-        query.bindValue(pos++, message->property("packHardwareVersion").toString());
-        query.bindValue(pos++, message->property("packProductId").toString());
-        query.bindValue(pos++, message->property("packBoardId").toString());
-        query.bindValue(pos++, message->property("topsideProductId").toString());
-        query.bindValue(pos++, message->property("topsideSoftwareVersion").toString());
-        query.bindValue(pos++, message->property("guid").toString());
-        query.bindValue(pos++, message->property("spaType").toInt());
-        query.bindValue(pos++, message->property("websiteRegistration").toBool());
-        query.bindValue(pos++, message->property("websiteRegistrationConfirm").toBool());
-        query.bindValue(pos++, message->property("macAddress").toByteArray());
-        query.bindValue(pos++, message->property("firmwareVersion").toInt());
-        query.bindValue(pos++, message->property("productCode").toInt());
-        query.bindValue(pos++, message->property("varSoftwareVersion").toString());
-        query.bindValue(pos++, message->property("spaboyFirmwareVersion").toString());
-        query.bindValue(pos++, message->property("spaboyHardwareVersion").toString());
-        query.bindValue(pos++, message->property("spaboyProductId").toString());
-        query.bindValue(pos++, message->property("spaboySerialNumber").toString());
-        query.bindValue(pos++, message->property("rfidFirmwareVersion").toString());
-        query.bindValue(pos++, message->property("rfidHardwareVersion").toString());
-        query.bindValue(pos++, message->property("rfidProductId").toString());
-        query.bindValue(pos++, message->property("rfidSerialNumber").toString());
+    query.bindValue(pos++, message.property("serialNums").toString());
+    query.bindValue(pos++, message.property("filterState").toInt());
+    query.bindValue(pos++, message.property("installDates").toString());
 
-        query.exec();
-    } else if (messageType == asdc::net::MessageType::LIVE) {
-        query.prepare(QLatin1String(R"(
-            INSERT INTO "message_live" (
-                "created_at",
-                "process_run_id",
-                "connection_session_id",
-                "message_received_at",
+    query.exec();
 
-                "temperature_fahrenheit",
-                "temperature_setpoint_fahrenheit",
-                "pump_1",
-                "pump_2",
-                "pump_3",
-                "pump_4",
-                "pump_5",
-                "blower_1",
-                "blower_2",
-                "lights",
-                "stereo",
-                "heater_1",
-                "heater_2",
-                "filter",
-                "onzen",
-                "ozone",
-                "exhaust_fan",
-                "sauna",
-                "heater_adc",
-                "sauna_time_remaining",
-                "economy",
-                "current_adc",
-                "all_on",
-                "fogger",
-                "error",
-                "alarm",
-                "status",
-                "ph",
-                "orp",
-                "sds",
-                "yess"
-            )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        )"));
+    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+}
+void DatabaseClient::logMessageInformation(const asdc::proto::Information &message, const QDateTime &messageReceivedAt) {
+    QSqlQuery query(m_database);
 
-        int pos = 0;
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "message_information" (
+            "created_at",
+            "process_run_id",
+            "connection_session_id",
+            "message_received_at",
 
-        query.bindValue(pos++, m_processRunId);
-        query.bindValue(pos++, m_connectionSessionId);
-        query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+            "pack_serial_number",
+            "pack_firmware_version",
+            "pack_hardware_version",
+            "pack_product_id",
+            "pack_board_id",
+            "topside_product_id",
+            "topside_software_version",
+            "guid",
+            "spa_type",
+            "website_registration",
+            "website_registration_confirm",
+            "mac_address",
+            "firmware_version",
+            "product_code",
+            "var_software_version",
+            "spaboy_firmware_version",
+            "spaboy_hardware_version",
+            "spaboy_product_id",
+            "spaboy_serial_number",
+            "rfid_firmware_version",
+            "rfid_hardware_version",
+            "rfid_product_id",
+            "rfid_serial_number"
+        )
+        VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    )"));
 
-        query.bindValue(pos++, message->property("temperatureFahrenheit").toInt());
-        query.bindValue(pos++, message->property("temperatureSetpointFahrenheit").toInt());
-        query.bindValue(pos++, message->property("pump1").toInt());
-        query.bindValue(pos++, message->property("pump2").toInt());
-        query.bindValue(pos++, message->property("pump3").toInt());
-        query.bindValue(pos++, message->property("pump4").toInt());
-        query.bindValue(pos++, message->property("pump5").toInt());
-        query.bindValue(pos++, message->property("blower1").toInt());
-        query.bindValue(pos++, message->property("blower2").toInt());
-        query.bindValue(pos++, message->property("lights").toBool());
-        query.bindValue(pos++, message->property("stereo").toBool());
-        query.bindValue(pos++, message->property("heater1").toInt());
-        query.bindValue(pos++, message->property("heater2").toInt());
-        query.bindValue(pos++, message->property("filter").toInt());
-        query.bindValue(pos++, message->property("onzen").toBool());
-        query.bindValue(pos++, message->property("ozone").toInt());
-        query.bindValue(pos++, message->property("exhaustFan").toBool());
-        query.bindValue(pos++, message->property("sauna").toInt());
-        query.bindValue(pos++, message->property("heaterAdc").toInt());
-        query.bindValue(pos++, message->property("saunaTimeRemaining").toInt());
-        query.bindValue(pos++, message->property("economy").toBool());
-        query.bindValue(pos++, message->property("currentAdc").toInt());
-        query.bindValue(pos++, message->property("allOn").toBool());
-        query.bindValue(pos++, message->property("fogger").toBool());
-        query.bindValue(pos++, message->property("error").toInt());
-        query.bindValue(pos++, message->property("alarm").toInt());
-        query.bindValue(pos++, message->property("status").toInt());
-        query.bindValue(pos++, message->property("ph").toInt());
-        query.bindValue(pos++, message->property("orp").toInt());
-        query.bindValue(pos++, message->property("sds").toBool());
-        query.bindValue(pos++, message->property("yess").toBool());
+    int pos = 0;
 
-        query.exec();
-    } else if (messageType == asdc::net::MessageType::ONZEN_LIVE) {
-        query.prepare(QLatin1String(R"(
-            INSERT INTO "message_onzen_live" (
-                "created_at",
-                "process_run_id",
-                "connection_session_id",
-                "message_received_at",
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, m_connectionSessionId);
+    query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
-                "guid",
-                "orp",
-                "ph_100",
-                "current",
-                "voltage",
-                "current_setpoint",
-                "voltage_setpoint",
-                "pump1",
-                "pump2",
-                "orp_state_machine",
-                "electrode_state_machine",
-                "electrode_id",
-                "electrode_polarity",
-                "electrode_1_resistance_1",
-                "electrode_1_resistance_2",
-                "electrode_2_resistance_1",
-                "electrode_2_resistance_2",
-                "command_mode",
-                "electrode_mah",
-                "ph_color",
-                "orp_color",
-                "electrode_wear"
-            )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        )"));
+    query.bindValue(pos++, message.property("packSerialNumber").toString());
+    query.bindValue(pos++, message.property("packFirmwareVersion").toString());
+    query.bindValue(pos++, message.property("packHardwareVersion").toString());
+    query.bindValue(pos++, message.property("packProductId").toString());
+    query.bindValue(pos++, message.property("packBoardId").toString());
+    query.bindValue(pos++, message.property("topsideProductId").toString());
+    query.bindValue(pos++, message.property("topsideSoftwareVersion").toString());
+    query.bindValue(pos++, message.property("guid").toString());
+    query.bindValue(pos++, message.property("spaType").toInt());
+    query.bindValue(pos++, message.property("websiteRegistration").toBool());
+    query.bindValue(pos++, message.property("websiteRegistrationConfirm").toBool());
+    query.bindValue(pos++, message.property("macAddress").toByteArray());
+    query.bindValue(pos++, message.property("firmwareVersion").toInt());
+    query.bindValue(pos++, message.property("productCode").toInt());
+    query.bindValue(pos++, message.property("varSoftwareVersion").toString());
+    query.bindValue(pos++, message.property("spaboyFirmwareVersion").toString());
+    query.bindValue(pos++, message.property("spaboyHardwareVersion").toString());
+    query.bindValue(pos++, message.property("spaboyProductId").toString());
+    query.bindValue(pos++, message.property("spaboySerialNumber").toString());
+    query.bindValue(pos++, message.property("rfidFirmwareVersion").toString());
+    query.bindValue(pos++, message.property("rfidHardwareVersion").toString());
+    query.bindValue(pos++, message.property("rfidProductId").toString());
+    query.bindValue(pos++, message.property("rfidSerialNumber").toString());
 
-        int pos = 0;
+    query.exec();
 
-        query.bindValue(pos++, m_processRunId);
-        query.bindValue(pos++, m_connectionSessionId);
-        query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+}
+void DatabaseClient::logMessageLive(const asdc::proto::Live &message, const QDateTime &messageReceivedAt) {
+    QSqlQuery query(m_database);
 
-        query.bindValue(pos++, message->property("guid").toString());
-        query.bindValue(pos++, message->property("orp").toInt());
-        query.bindValue(pos++, message->property("ph100").toInt());
-        query.bindValue(pos++, message->property("current").toInt());
-        query.bindValue(pos++, message->property("voltage").toInt());
-        query.bindValue(pos++, message->property("currentSetpoint").toInt());
-        query.bindValue(pos++, message->property("voltageSetpoint").toInt());
-        query.bindValue(pos++, message->property("pump1").toBool());
-        query.bindValue(pos++, message->property("pump2").toBool());
-        query.bindValue(pos++, message->property("orpStateMachine").toInt());
-        query.bindValue(pos++, message->property("electrodeStateMachine").toInt());
-        query.bindValue(pos++, message->property("electrodeId").toInt());
-        query.bindValue(pos++, message->property("electrodePolarity").toInt());
-        query.bindValue(pos++, message->property("electrode1Resistance1").toInt());
-        query.bindValue(pos++, message->property("electrode1Resistance2").toInt());
-        query.bindValue(pos++, message->property("electrode2Resistance1").toInt());
-        query.bindValue(pos++, message->property("electrode2Resistance2").toInt());
-        query.bindValue(pos++, message->property("commandMode").toBool());
-        query.bindValue(pos++, message->property("electrodeMAH").toInt());
-        query.bindValue(pos++, message->property("phColor").toInt());
-        query.bindValue(pos++, message->property("orpColor").toInt());
-        query.bindValue(pos++, message->property("electrodeWear").toInt());
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "message_live" (
+            "created_at",
+            "process_run_id",
+            "connection_session_id",
+            "message_received_at",
 
-        query.exec();
-    } else if (messageType == asdc::net::MessageType::ONZEN_SETTINGS) {
-        query.prepare(QLatin1String(R"(
-            INSERT INTO "message_onzen_settings" (
-                "created_at",
-                "process_run_id",
-                "connection_session_id",
-                "message_received_at",
+            "temperature_fahrenheit",
+            "temperature_setpoint_fahrenheit",
+            "pump_1",
+            "pump_2",
+            "pump_3",
+            "pump_4",
+            "pump_5",
+            "blower_1",
+            "blower_2",
+            "lights",
+            "stereo",
+            "heater_1",
+            "heater_2",
+            "filter",
+            "onzen",
+            "ozone",
+            "exhaust_fan",
+            "sauna",
+            "heater_adc",
+            "sauna_time_remaining",
+            "economy",
+            "current_adc",
+            "all_on",
+            "fogger",
+            "error",
+            "alarm",
+            "status",
+            "ph",
+            "orp",
+            "sds",
+            "yess"
+        )
+        VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    )"));
 
-                "guid",
-                "over_voltage",
-                "under_voltage",
-                "over_current",
-                "under_current",
-                "orp_high",
-                "orp_low",
-                "ph_high",
-                "ph_low",
-                "pwm_pump1_time_on",
-                "pwm_pump1_time_off",
-                "sampling_interval",
-                "sampling_duration",
-                "pwm_pump2_time_on",
-                "pwm_pump2_time_off",
-                "sb_low_cl",
-                "sb_caution_low_cl",
-                "sb_caution_high_cl",
-                "sb_high_cl",
-                "sb_low_ph",
-                "sb_caution_low_ph",
-                "sb_caution_high_ph",
-                "sb_high_ph"
-            )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        )"));
+    int pos = 0;
 
-        int pos = 0;
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, m_connectionSessionId);
+    query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
-        query.bindValue(pos++, m_processRunId);
-        query.bindValue(pos++, m_connectionSessionId);
-        query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+    query.bindValue(pos++, message.property("temperatureFahrenheit").toInt());
+    query.bindValue(pos++, message.property("temperatureSetpointFahrenheit").toInt());
+    query.bindValue(pos++, message.property("pump1").toInt());
+    query.bindValue(pos++, message.property("pump2").toInt());
+    query.bindValue(pos++, message.property("pump3").toInt());
+    query.bindValue(pos++, message.property("pump4").toInt());
+    query.bindValue(pos++, message.property("pump5").toInt());
+    query.bindValue(pos++, message.property("blower1").toInt());
+    query.bindValue(pos++, message.property("blower2").toInt());
+    query.bindValue(pos++, message.property("lights").toBool());
+    query.bindValue(pos++, message.property("stereo").toBool());
+    query.bindValue(pos++, message.property("heater1").toInt());
+    query.bindValue(pos++, message.property("heater2").toInt());
+    query.bindValue(pos++, message.property("filter").toInt());
+    query.bindValue(pos++, message.property("onzen").toBool());
+    query.bindValue(pos++, message.property("ozone").toInt());
+    query.bindValue(pos++, message.property("exhaustFan").toBool());
+    query.bindValue(pos++, message.property("sauna").toInt());
+    query.bindValue(pos++, message.property("heaterAdc").toInt());
+    query.bindValue(pos++, message.property("saunaTimeRemaining").toInt());
+    query.bindValue(pos++, message.property("economy").toBool());
+    query.bindValue(pos++, message.property("currentAdc").toInt());
+    query.bindValue(pos++, message.property("allOn").toBool());
+    query.bindValue(pos++, message.property("fogger").toBool());
+    query.bindValue(pos++, message.property("error").toInt());
+    query.bindValue(pos++, message.property("alarm").toInt());
+    query.bindValue(pos++, message.property("status").toInt());
+    query.bindValue(pos++, message.property("ph").toInt());
+    query.bindValue(pos++, message.property("orp").toInt());
+    query.bindValue(pos++, message.property("sds").toBool());
+    query.bindValue(pos++, message.property("yess").toBool());
 
-        query.bindValue(pos++, message->property("guid").toString());
-        query.bindValue(pos++, message->property("overVoltage").toInt());
-        query.bindValue(pos++, message->property("underVoltage").toInt());
-        query.bindValue(pos++, message->property("overCurrent").toInt());
-        query.bindValue(pos++, message->property("underCurrent").toInt());
-        query.bindValue(pos++, message->property("orpHigh").toInt());
-        query.bindValue(pos++, message->property("orpLow").toInt());
-        query.bindValue(pos++, message->property("phHigh").toInt());
-        query.bindValue(pos++, message->property("phLow").toInt());
-        query.bindValue(pos++, message->property("pwmPump1TimeOn").toInt());
-        query.bindValue(pos++, message->property("pwmPump1TimeOff").toInt());
-        query.bindValue(pos++, message->property("samplingInterval").toInt());
-        query.bindValue(pos++, message->property("samplingDuration").toInt());
-        query.bindValue(pos++, message->property("pwmPump2TimeOn").toInt());
-        query.bindValue(pos++, message->property("pwmPump2TimeOff").toInt());
-        query.bindValue(pos++, message->property("sbLowCl").toInt());
-        query.bindValue(pos++, message->property("sbCautionLowCl").toInt());
-        query.bindValue(pos++, message->property("sbCautionHighCl").toInt());
-        query.bindValue(pos++, message->property("sbHighCl").toInt());
-        query.bindValue(pos++, message->property("sbLowPh").toInt());
-        query.bindValue(pos++, message->property("sbCautionLowPh").toInt());
-        query.bindValue(pos++, message->property("sbCautionHighPh").toInt());
-        query.bindValue(pos++, message->property("sbHighPh").toInt());
+    query.exec();
 
-        query.exec();
-    } else if (messageType == asdc::net::MessageType::PEAK) {
-        query.prepare(QLatin1String(R"(
-            INSERT INTO "message_peak" (
-                "created_at",
-                "process_run_id",
-                "connection_session_id",
-                "message_received_at",
+    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+}
+void DatabaseClient::logMessageOnzenLive(const asdc::proto::OnzenLive &message, const QDateTime &messageReceivedAt) {
+    QSqlQuery query(m_database);
 
-                "peaknum",
-                "peakstart1",
-                "peakend1",
-                "peakstart2",
-                "peakend2",
-                "midpeaknum",
-                "midpeakstart1",
-                "midpeakend1",
-                "midpeakstart2",
-                "midpeakend2",
-                "offpeakstart",
-                "offpeakend",
-                "offset",
-                "peakheater",
-                "peakfilter",
-                "peakozone",
-                "midpeakheater",
-                "midpeakfilter",
-                "midpeakozone",
-                "sat",
-                "sun",
-                "mon",
-                "tue",
-                "wed",
-                "thu",
-                "fri"
-            )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        )"));
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "message_onzen_live" (
+            "created_at",
+            "process_run_id",
+            "connection_session_id",
+            "message_received_at",
 
-        int pos = 0;
+            "guid",
+            "orp",
+            "ph_100",
+            "current",
+            "voltage",
+            "current_setpoint",
+            "voltage_setpoint",
+            "pump1",
+            "pump2",
+            "orp_state_machine",
+            "electrode_state_machine",
+            "electrode_id",
+            "electrode_polarity",
+            "electrode_1_resistance_1",
+            "electrode_1_resistance_2",
+            "electrode_2_resistance_1",
+            "electrode_2_resistance_2",
+            "command_mode",
+            "electrode_mah",
+            "ph_color",
+            "orp_color",
+            "electrode_wear"
+        )
+        VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    )"));
 
-        query.bindValue(pos++, m_processRunId);
-        query.bindValue(pos++, m_connectionSessionId);
-        query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+    int pos = 0;
 
-        query.bindValue(pos++, message->property("peaknum").toInt());
-        query.bindValue(pos++, message->property("peakstart1").toInt());
-        query.bindValue(pos++, message->property("peakend1").toInt());
-        query.bindValue(pos++, message->property("peakstart2").toInt());
-        query.bindValue(pos++, message->property("peakend2").toInt());
-        query.bindValue(pos++, message->property("midpeaknum").toInt());
-        query.bindValue(pos++, message->property("midpeakstart1").toInt());
-        query.bindValue(pos++, message->property("midpeakend1").toInt());
-        query.bindValue(pos++, message->property("midpeakstart2").toInt());
-        query.bindValue(pos++, message->property("midpeakend2").toInt());
-        query.bindValue(pos++, message->property("offpeakstart").toInt());
-        query.bindValue(pos++, message->property("offpeakend").toInt());
-        query.bindValue(pos++, message->property("offset").toInt());
-        query.bindValue(pos++, message->property("peakheater").toBool());
-        query.bindValue(pos++, message->property("peakfilter").toBool());
-        query.bindValue(pos++, message->property("peakozone").toBool());
-        query.bindValue(pos++, message->property("midpeakheater").toBool());
-        query.bindValue(pos++, message->property("midpeakfilter").toBool());
-        query.bindValue(pos++, message->property("midpeakozone").toBool());
-        query.bindValue(pos++, message->property("sat").toBool());
-        query.bindValue(pos++, message->property("sun").toBool());
-        query.bindValue(pos++, message->property("mon").toBool());
-        query.bindValue(pos++, message->property("tue").toBool());
-        query.bindValue(pos++, message->property("wed").toBool());
-        query.bindValue(pos++, message->property("thu").toBool());
-        query.bindValue(pos++, message->property("fri").toBool());
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, m_connectionSessionId);
+    query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
-        query.exec();
-    } else if (messageType == asdc::net::MessageType::PERIPHERAL) {
-        query.prepare(QLatin1String(R"(
-            INSERT INTO "message_peripheral" (
-                "created_at",
-                "process_run_id",
-                "connection_session_id",
-                "message_received_at",
+    query.bindValue(pos++, message.property("guid").toString());
+    query.bindValue(pos++, message.property("orp").toInt());
+    query.bindValue(pos++, message.property("ph100").toInt());
+    query.bindValue(pos++, message.property("current").toInt());
+    query.bindValue(pos++, message.property("voltage").toInt());
+    query.bindValue(pos++, message.property("currentSetpoint").toInt());
+    query.bindValue(pos++, message.property("voltageSetpoint").toInt());
+    query.bindValue(pos++, message.property("pump1").toBool());
+    query.bindValue(pos++, message.property("pump2").toBool());
+    query.bindValue(pos++, message.property("orpStateMachine").toInt());
+    query.bindValue(pos++, message.property("electrodeStateMachine").toInt());
+    query.bindValue(pos++, message.property("electrodeId").toInt());
+    query.bindValue(pos++, message.property("electrodePolarity").toInt());
+    query.bindValue(pos++, message.property("electrode1Resistance1").toInt());
+    query.bindValue(pos++, message.property("electrode1Resistance2").toInt());
+    query.bindValue(pos++, message.property("electrode2Resistance1").toInt());
+    query.bindValue(pos++, message.property("electrode2Resistance2").toInt());
+    query.bindValue(pos++, message.property("commandMode").toBool());
+    query.bindValue(pos++, message.property("electrodeMAH").toInt());
+    query.bindValue(pos++, message.property("phColor").toInt());
+    query.bindValue(pos++, message.property("orpColor").toInt());
+    query.bindValue(pos++, message.property("electrodeWear").toInt());
 
-                "guid",
-                "hardware_version",
-                "firmware_version",
-                "product_code",
-                "connected"
-            )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?)
-        )"));
+    query.exec();
 
-        int pos = 0;
+    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+}
+void DatabaseClient::logMessageOnzenSettings(const asdc::proto::OnzenSettings &message, const QDateTime &messageReceivedAt) {
+    QSqlQuery query(m_database);
 
-        query.bindValue(pos++, m_processRunId);
-        query.bindValue(pos++, m_connectionSessionId);
-        query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "message_onzen_settings" (
+            "created_at",
+            "process_run_id",
+            "connection_session_id",
+            "message_received_at",
 
-        query.bindValue(pos++, message->property("guid").toString());
-        query.bindValue(pos++, message->property("hardwareVersion").toInt());
-        query.bindValue(pos++, message->property("firmwareVersion").toInt());
-        query.bindValue(pos++, message->property("productCode").toInt());
-        query.bindValue(pos++, message->property("connected").toBool());
+            "guid",
+            "over_voltage",
+            "under_voltage",
+            "over_current",
+            "under_current",
+            "orp_high",
+            "orp_low",
+            "ph_high",
+            "ph_low",
+            "pwm_pump1_time_on",
+            "pwm_pump1_time_off",
+            "sampling_interval",
+            "sampling_duration",
+            "pwm_pump2_time_on",
+            "pwm_pump2_time_off",
+            "sb_low_cl",
+            "sb_caution_low_cl",
+            "sb_caution_high_cl",
+            "sb_high_cl",
+            "sb_low_ph",
+            "sb_caution_low_ph",
+            "sb_caution_high_ph",
+            "sb_high_ph"
+        )
+        VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    )"));
 
-        query.exec();
-    } else if (messageType == asdc::net::MessageType::SETTINGS) {
-        query.prepare(QLatin1String(R"(
-            INSERT INTO "message_settings" (
-                "created_at",
-                "process_run_id",
-                "connection_session_id",
-                "message_received_at",
+    int pos = 0;
 
-                "max_filtration_frequency",
-                "min_filtration_frequency",
-                "filtration_frequency",
-                "max_filtration_duration",
-                "min_filtration_duration",
-                "filtration_duration",
-                "max_onzen_hours",
-                "min_onzen_hours",
-                "onzen_hours",
-                "max_onzen_cycles",
-                "min_onzen_cycles",
-                "onzen_cycles",
-                "max_ozone_hours",
-                "min_ozone_hours",
-                "ozone_hours",
-                "max_ozone_cycles",
-                "min_ozone_cycles",
-                "ozone_cycles",
-                "filter_suspension",
-                "flash_lights_on_error",
-                "temperature_offset",
-                "sauna_duration",
-                "min_temperature",
-                "max_temperature",
-                "filtration_offset",
-                "spaboy_hours"
-            )
-            VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        )"));
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, m_connectionSessionId);
+    query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
 
-        int pos = 0;
+    query.bindValue(pos++, message.property("guid").toString());
+    query.bindValue(pos++, message.property("overVoltage").toInt());
+    query.bindValue(pos++, message.property("underVoltage").toInt());
+    query.bindValue(pos++, message.property("overCurrent").toInt());
+    query.bindValue(pos++, message.property("underCurrent").toInt());
+    query.bindValue(pos++, message.property("orpHigh").toInt());
+    query.bindValue(pos++, message.property("orpLow").toInt());
+    query.bindValue(pos++, message.property("phHigh").toInt());
+    query.bindValue(pos++, message.property("phLow").toInt());
+    query.bindValue(pos++, message.property("pwmPump1TimeOn").toInt());
+    query.bindValue(pos++, message.property("pwmPump1TimeOff").toInt());
+    query.bindValue(pos++, message.property("samplingInterval").toInt());
+    query.bindValue(pos++, message.property("samplingDuration").toInt());
+    query.bindValue(pos++, message.property("pwmPump2TimeOn").toInt());
+    query.bindValue(pos++, message.property("pwmPump2TimeOff").toInt());
+    query.bindValue(pos++, message.property("sbLowCl").toInt());
+    query.bindValue(pos++, message.property("sbCautionLowCl").toInt());
+    query.bindValue(pos++, message.property("sbCautionHighCl").toInt());
+    query.bindValue(pos++, message.property("sbHighCl").toInt());
+    query.bindValue(pos++, message.property("sbLowPh").toInt());
+    query.bindValue(pos++, message.property("sbCautionLowPh").toInt());
+    query.bindValue(pos++, message.property("sbCautionHighPh").toInt());
+    query.bindValue(pos++, message.property("sbHighPh").toInt());
 
-        query.bindValue(pos++, m_processRunId);
-        query.bindValue(pos++, m_connectionSessionId);
-        query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+    query.exec();
 
-        query.bindValue(pos++, message->property("maxFiltrationFrequency").toInt());
-        query.bindValue(pos++, message->property("minFiltrationFrequency").toInt());
-        query.bindValue(pos++, message->property("filtrationFrequency").toInt());
-        query.bindValue(pos++, message->property("maxFiltrationDuration").toInt());
-        query.bindValue(pos++, message->property("minFiltrationDuration").toInt());
-        query.bindValue(pos++, message->property("filtrationDuration").toInt());
-        query.bindValue(pos++, message->property("maxOnzenHours").toInt());
-        query.bindValue(pos++, message->property("minOnzenHours").toInt());
-        query.bindValue(pos++, message->property("onzenHours").toInt());
-        query.bindValue(pos++, message->property("maxOnzenCycles").toInt());
-        query.bindValue(pos++, message->property("minOnzenCycles").toInt());
-        query.bindValue(pos++, message->property("onzenCycles").toInt());
-        query.bindValue(pos++, message->property("maxOzoneHours").toInt());
-        query.bindValue(pos++, message->property("minOzoneHours").toInt());
-        query.bindValue(pos++, message->property("ozoneHours").toInt());
-        query.bindValue(pos++, message->property("maxOzoneCycles").toInt());
-        query.bindValue(pos++, message->property("minOzoneCycles").toInt());
-        query.bindValue(pos++, message->property("ozoneCycles").toInt());
-        query.bindValue(pos++, message->property("filterSuspension").toBool());
-        query.bindValue(pos++, message->property("flashLightsOnError").toBool());
-        query.bindValue(pos++, message->property("temperatureOffset").toInt());
-        query.bindValue(pos++, message->property("saunaDuration").toInt());
-        query.bindValue(pos++, message->property("minTemperature").toInt());
-        query.bindValue(pos++, message->property("maxTemperature").toInt());
-        query.bindValue(pos++, message->property("filtrationOffset").toInt());
-        query.bindValue(pos++, message->property("spaboyHours").toInt());
+    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+}
+void DatabaseClient::logMessagePeak(const asdc::proto::Peak &message, const QDateTime &messageReceivedAt) {
+    QSqlQuery query(m_database);
 
-        query.exec();
-    }
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "message_peak" (
+            "created_at",
+            "process_run_id",
+            "connection_session_id",
+            "message_received_at",
+
+            "peaknum",
+            "peakstart1",
+            "peakend1",
+            "peakstart2",
+            "peakend2",
+            "midpeaknum",
+            "midpeakstart1",
+            "midpeakend1",
+            "midpeakstart2",
+            "midpeakend2",
+            "offpeakstart",
+            "offpeakend",
+            "offset",
+            "peakheater",
+            "peakfilter",
+            "peakozone",
+            "midpeakheater",
+            "midpeakfilter",
+            "midpeakozone",
+            "sat",
+            "sun",
+            "mon",
+            "tue",
+            "wed",
+            "thu",
+            "fri"
+        )
+        VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    )"));
+
+    int pos = 0;
+
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, m_connectionSessionId);
+    query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+
+    query.bindValue(pos++, message.property("peaknum").toInt());
+    query.bindValue(pos++, message.property("peakstart1").toInt());
+    query.bindValue(pos++, message.property("peakend1").toInt());
+    query.bindValue(pos++, message.property("peakstart2").toInt());
+    query.bindValue(pos++, message.property("peakend2").toInt());
+    query.bindValue(pos++, message.property("midpeaknum").toInt());
+    query.bindValue(pos++, message.property("midpeakstart1").toInt());
+    query.bindValue(pos++, message.property("midpeakend1").toInt());
+    query.bindValue(pos++, message.property("midpeakstart2").toInt());
+    query.bindValue(pos++, message.property("midpeakend2").toInt());
+    query.bindValue(pos++, message.property("offpeakstart").toInt());
+    query.bindValue(pos++, message.property("offpeakend").toInt());
+    query.bindValue(pos++, message.property("offset").toInt());
+    query.bindValue(pos++, message.property("peakheater").toBool());
+    query.bindValue(pos++, message.property("peakfilter").toBool());
+    query.bindValue(pos++, message.property("peakozone").toBool());
+    query.bindValue(pos++, message.property("midpeakheater").toBool());
+    query.bindValue(pos++, message.property("midpeakfilter").toBool());
+    query.bindValue(pos++, message.property("midpeakozone").toBool());
+    query.bindValue(pos++, message.property("sat").toBool());
+    query.bindValue(pos++, message.property("sun").toBool());
+    query.bindValue(pos++, message.property("mon").toBool());
+    query.bindValue(pos++, message.property("tue").toBool());
+    query.bindValue(pos++, message.property("wed").toBool());
+    query.bindValue(pos++, message.property("thu").toBool());
+    query.bindValue(pos++, message.property("fri").toBool());
+
+    query.exec();
+
+    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+}
+void DatabaseClient::logMessagePeripheral(const asdc::proto::Peripheral &message, const QDateTime &messageReceivedAt) {
+    QSqlQuery query(m_database);
+
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "message_peripheral" (
+            "created_at",
+            "process_run_id",
+            "connection_session_id",
+            "message_received_at",
+
+            "guid",
+            "hardware_version",
+            "firmware_version",
+            "product_code",
+            "connected"
+        )
+        VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?)
+    )"));
+
+    int pos = 0;
+
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, m_connectionSessionId);
+    query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+
+    query.bindValue(pos++, message.property("guid").toString());
+    query.bindValue(pos++, message.property("hardwareVersion").toInt());
+    query.bindValue(pos++, message.property("firmwareVersion").toInt());
+    query.bindValue(pos++, message.property("productCode").toInt());
+    query.bindValue(pos++, message.property("connected").toBool());
+
+    query.exec();
+
+    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+}
+void DatabaseClient::logMessageSettings(const asdc::proto::Settings &message, const QDateTime &messageReceivedAt) {
+    QSqlQuery query(m_database);
+
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "message_settings" (
+            "created_at",
+            "process_run_id",
+            "connection_session_id",
+            "message_received_at",
+
+            "max_filtration_frequency",
+            "min_filtration_frequency",
+            "filtration_frequency",
+            "max_filtration_duration",
+            "min_filtration_duration",
+            "filtration_duration",
+            "max_onzen_hours",
+            "min_onzen_hours",
+            "onzen_hours",
+            "max_onzen_cycles",
+            "min_onzen_cycles",
+            "onzen_cycles",
+            "max_ozone_hours",
+            "min_ozone_hours",
+            "ozone_hours",
+            "max_ozone_cycles",
+            "min_ozone_cycles",
+            "ozone_cycles",
+            "filter_suspension",
+            "flash_lights_on_error",
+            "temperature_offset",
+            "sauna_duration",
+            "min_temperature",
+            "max_temperature",
+            "filtration_offset",
+            "spaboy_hours"
+        )
+        VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    )"));
+
+    int pos = 0;
+
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, m_connectionSessionId);
+    query.bindValue(pos++, messageReceivedAt.toString("yyyy-MM-dd hh:mm:ss"));
+
+    query.bindValue(pos++, message.property("maxFiltrationFrequency").toInt());
+    query.bindValue(pos++, message.property("minFiltrationFrequency").toInt());
+    query.bindValue(pos++, message.property("filtrationFrequency").toInt());
+    query.bindValue(pos++, message.property("maxFiltrationDuration").toInt());
+    query.bindValue(pos++, message.property("minFiltrationDuration").toInt());
+    query.bindValue(pos++, message.property("filtrationDuration").toInt());
+    query.bindValue(pos++, message.property("maxOnzenHours").toInt());
+    query.bindValue(pos++, message.property("minOnzenHours").toInt());
+    query.bindValue(pos++, message.property("onzenHours").toInt());
+    query.bindValue(pos++, message.property("maxOnzenCycles").toInt());
+    query.bindValue(pos++, message.property("minOnzenCycles").toInt());
+    query.bindValue(pos++, message.property("onzenCycles").toInt());
+    query.bindValue(pos++, message.property("maxOzoneHours").toInt());
+    query.bindValue(pos++, message.property("minOzoneHours").toInt());
+    query.bindValue(pos++, message.property("ozoneHours").toInt());
+    query.bindValue(pos++, message.property("maxOzoneCycles").toInt());
+    query.bindValue(pos++, message.property("minOzoneCycles").toInt());
+    query.bindValue(pos++, message.property("ozoneCycles").toInt());
+    query.bindValue(pos++, message.property("filterSuspension").toBool());
+    query.bindValue(pos++, message.property("flashLightsOnError").toBool());
+    query.bindValue(pos++, message.property("temperatureOffset").toInt());
+    query.bindValue(pos++, message.property("saunaDuration").toInt());
+    query.bindValue(pos++, message.property("minTemperature").toInt());
+    query.bindValue(pos++, message.property("maxTemperature").toInt());
+    query.bindValue(pos++, message.property("filtrationOffset").toInt());
+    query.bindValue(pos++, message.property("spaboyHours").toInt());
+
+    query.exec();
+
+    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
 }
 
-// void DatabaseClient::setupSchema() {
-//     // QString sql("create table person (id integer primary key, firstname varchar(20), lastname varchar(30), age integer)");
+void DatabaseClient::logCommand(const QString &name, const QVariant &valueFrom, const QVariant &valueTo, const QDateTime &commandSentAt) {
+    QSqlQuery query(m_database);
 
-//     // QSqlQuery query(sql, m_database);
-//     // bool ret = query.exec();
-//     // qDebug() << ret;
+    query.prepare(QLatin1String(R"(
+        INSERT INTO "command_request" (
+            "created_at",
+            "process_run_id",
+            "connection_session_id",
+            "command_sent_at",
 
-//     // if (!ret) {
-//     //     qDebug() << query.lastError();
-//     // }
+            "name",
+            "value_from",
+            "value_to"
+        )
+        VALUES (DATETIME('now'), ?, ?, ?, ?, ?, ?)
+    )"));
 
+    int pos = 0;
 
-//     // m_messageClock.property("year").toInt();
-//     qDebug() << m_messageLive.property("pump1");
-//     qDebug() << m_messageLive.property("pump1").toInt();
+    query.bindValue(pos++, m_processRunId);
+    query.bindValue(pos++, m_connectionSessionId);
+    query.bindValue(pos++, commandSentAt.toString("yyyy-MM-dd hh:mm:ss"));
 
-//     asdc::proto::Clock messageClock;
-//     messageClock.setYear(2025);
-//     messageClock.setMonth(9);
-//     messageClock.setDay(26);
-//     messageClock.setHour(7);
-//     messageClock.setMinute(39);
-//     // messageClock.setSecond(10);
-//     messageClock.setProperty("second", 10);
+    query.bindValue(pos++, name);
+    query.bindValue(pos++, valueFrom);
+    query.bindValue(pos++, valueTo);
 
-//     QMap<QString, QMetaType::Type> fieldsClock = messageFieldsClock();
+    query.exec();
 
-//     QMap<QString, QMetaType::Type>::iterator iter;
-//     for (iter = fieldsClock.begin(); iter != fieldsClock.end(); iter++) {
-//         const QString fieldName = iter.key();
-//         QMetaType::Type fieldType = iter.value();
-
-//         if (fieldType == QMetaType::Int) {
-//             qDebug() << fieldName << "-" << fieldType << "=" << messageClock.property(fieldName).toInt();
-//         } else {
-//             qDebug() << "not int";
-//         }
-//     }
-
-//     qDebug() << messageClock.staticMetaObject.className();
-//     qDebug() << messageClock.staticMetaObject.metaType();
-
-//     // DBUG: <asdc::db::DatabaseClient::setupSchema> "day" - 2 = 26
-//     // DBUG: <asdc::db::DatabaseClient::setupSchema> "hour" - 2 = 7
-//     // DBUG: <asdc::db::DatabaseClient::setupSchema> "minute" - 2 = 39
-//     // DBUG: <asdc::db::DatabaseClient::setupSchema> "month" - 2 = 9
-//     // DBUG: <asdc::db::DatabaseClient::setupSchema> "second" - 2 = 10
-//     // DBUG: <asdc::db::DatabaseClient::setupSchema> "year" - 2 = 2025
-//     // DBUG: <asdc::db::DatabaseClient::setupSchema> asdc::proto::Clock
-//     // DBUG: <asdc::db::DatabaseClient::setupSchema> QMetaType(asdc::proto::Clock)
-// }
+    qDebug() << "logged command:" << name << "- value:" << valueTo << "- sent at:" << commandSentAt;
+}
 
 };  // namespace asdc::db

@@ -31,9 +31,9 @@ static QString localIPv4ViaDefaultRoute()
     sock.waitForConnected(1); // returns immediately for UDP; safe to ignore result
 
     QHostAddress local = sock.localAddress();
-    if (!local.isNull() &&
-        local.protocol() == QAbstractSocket::IPv4Protocol &&
-        !local.isLoopback())
+    if (!local.isNull()
+        && local.protocol() == QAbstractSocket::IPv4Protocol
+        && !local.isLoopback())
     {
         return local.toString();
     }
@@ -65,31 +65,23 @@ DiscoveryClient::DiscoveryClient(QObject *parent)
 
 }
 
-void DiscoveryClient::test() {
-    qDebug() << localIPv4ViaDefaultRoute();
-}
-
-void DiscoveryClient::setIpAndMask(QString ipAddress, int netmaskCidr) {
-    m_ip = ipAddress;
-    m_prefix = netmaskCidr;
-}
-
-QStringList DiscoveryClient::enumerateHosts() const
+static inline QStringList enumerateHosts(const QString &ipAddress, int prefix)
 {
-    QHostAddress ip(m_ip);
-    quint32 ip4 = ip.toIPv4Address();        // host byte order
-    if (ip4 == 0 && m_ip != "0.0.0.0")
+    QHostAddress ip(ipAddress);
+    quint32 ip4 = ip.toIPv4Address();
+    if (ip4 == 0 && ipAddress != "0.0.0.0")
         return {}; // not IPv4
 
     // Build mask from CIDR (host byte order)
-    quint32 mask = (m_prefix == 0) ? 0u : (0xFFFFFFFFu << (32 - m_prefix));
+    quint32 mask = (prefix == 0) ? 0u : (0xFFFFFFFFu << (32 - prefix));
     quint32 network = ip4 & mask;
     quint32 broadcast = network | ~mask;
 
-    quint32 start = (m_prefix <= 30) ? (network + 1) : network;
-    quint32 end   = (m_prefix <= 30) ? (broadcast - 1) : broadcast;
+    quint32 start = (prefix <= 30) ? (network + 1) : network;
+    quint32 end   = (prefix <= 30) ? (broadcast - 1) : broadcast;
 
-    if (start > end) return {};
+    if (start > end)
+        return {};
 
     QStringList out;
     out.reserve(int(end - start + 1));
@@ -98,22 +90,22 @@ QStringList DiscoveryClient::enumerateHosts() const
     return out;
 }
 
-bool DiscoveryClient::udpProbe(const QString& host,
-                             const QByteArray& query,
-                             quint16 queryPort,
-                             const QByteArray& responsePrefix,
-                             int timeoutMs)
+static inline bool udpProbe(const QString &host,
+                            const QByteArray &query,
+                            quint16 queryPort,
+                            const QByteArray &responsePrefix,
+                            int timeoutMs)
 {
     QUdpSocket sock;
     sock.setProxy(QNetworkProxy::NoProxy);
 
-    // Bind to an ephemeral local port (like Python's bind('', 0))
+    // Bind to an ephemeral local port
     if (!sock.bind(QHostAddress::AnyIPv4, 0))
         return false;
 
-    // Send query
     const QHostAddress dst(host);
-    if (dst.isNull()) return false;
+    if (dst.isNull())
+        return false;
 
     if (sock.writeDatagram(query, dst, queryPort) != query.size())
         return false;
@@ -145,14 +137,33 @@ bool DiscoveryClient::udpProbe(const QString& host,
     return false;
 }
 
-QStringList DiscoveryClient::search(int timeoutMs, int maxWorkers) const
+void DiscoveryClient::search(const QString &ipAddress,
+                             int netmaskCidr,
+                             int timeoutMs,
+                             int maxWorkers)
 {
     const QByteArray QUERY    = QByteArrayLiteral("Query,BlueFalls,");
     const QByteArray RESPONSE = QByteArrayLiteral("Response,BlueFalls,");
+    const quint16 QUERY_PORT    = 9131;
+    const quint16 RESPONSE_PORT = 33327;
 
-    QStringList hosts = enumerateHosts();
+    qDebug() << "discovery searching -"
+             << "ip:" << ipAddress
+             << ", netmask:" << netmaskCidr
+             << ", timeout:" << timeoutMs
+             << ", workers:" << maxWorkers;
+
+    QString ipAddr(ipAddress);
+    if (ipAddr == QString()) {
+        ipAddr = localIPv4ViaDefaultRoute();
+        qDebug() << "using local ipv4 default route:" << ipAddr;
+    }
+
+    QStringList hosts = enumerateHosts(ipAddr, netmaskCidr);
     if (hosts.isEmpty())
-        return {};
+        return;
+
+    qDebug() << "querying" << hosts.length() << "hosts";
 
     QStringList found;
     QMutex foundMutex;
@@ -165,6 +176,9 @@ QStringList DiscoveryClient::search(int timeoutMs, int maxWorkers) const
             if (udpProbe(h, QUERY, QUERY_PORT, RESPONSE, timeoutMs)) {
                 QMutexLocker lock(&foundMutex);
                 found.push_back(h);
+
+                qDebug() << h;
+                // emit hostFound(h);
             }
         });
         pool.start(task);
@@ -172,10 +186,25 @@ QStringList DiscoveryClient::search(int timeoutMs, int maxWorkers) const
 
     pool.waitForDone();
 
-    std::sort(found.begin(), found.end());
-    return found;
+    // std::sort(found.begin(), found.end());
+    // return found;
 }
 
 
-};
+DiscoveryClientWorker::DiscoveryClientWorker(QObject *parent)
+    : QObject{parent}
+{
+    m_discoveryClient = new DiscoveryClient(this);
 
+    connect(m_discoveryClient, &DiscoveryClient::hostFound, this, &DiscoveryClientWorker::hostFound);
+}
+
+void DiscoveryClientWorker::search()
+{
+    emit startedSearch();
+    m_discoveryClient->search();
+    emit finishedSearch();
+}
+
+
+};  // namespace asdc::net

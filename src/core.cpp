@@ -2,252 +2,107 @@
 
 #include <QThread>
 
+#include "net/discovery.h"
 #include "net/client.h"
 #include "db/client.h"
 
 
-#include "net/discovery.h"
-
+// #include <QDir>
+// QDir dir(":/");
+// for (auto entry : dir.entryList()) {
+//     qWarning() << "Found entry in resources:" << entry;
+// }
 
 
 namespace asdc::core {
 
 
-NetworkClientWorker::NetworkClientWorker(QObject *parent)
+CoreInterface::CoreInterface(QObject *parent)
     : QObject{parent}
 {
-    m_networkClient = new asdc::net::NetworkClient(this);
-
-    connect(m_networkClient, &asdc::net::NetworkClient::hostChanged, this, &NetworkClientWorker::clientHostChanged);
-    connect(m_networkClient, &asdc::net::NetworkClient::portChanged, this, &NetworkClientWorker::clientPortChanged);
-    connect(m_networkClient, &asdc::net::NetworkClient::connected, this, &NetworkClientWorker::clientConnected);
-    connect(m_networkClient, &asdc::net::NetworkClient::disconnected, this, &NetworkClientWorker::clientDisconnected);
-    connect(m_networkClient, &asdc::net::NetworkClient::stateChanged, this, &NetworkClientWorker::clientStateChanged);
-    connect(m_networkClient, &asdc::net::NetworkClient::errorOccurred, this, &NetworkClientWorker::clientErrorOccurred);
-    connect(m_networkClient, &asdc::net::NetworkClient::headerReceived, this, &NetworkClientWorker::onHeaderReceived);
-};
-
-void NetworkClientWorker::connectClient(const QString &host) {
-    m_networkClient->connectToDevice(host);
-}
-void NetworkClientWorker::disconnectClient() {
-    m_networkClient->disconnectFromDevice();
-}
-void NetworkClientWorker::queueMessage(const asdc::net::MessageType &messageType) {
-    qDebug() << "requesting message" << messageType;
-    m_networkClient->requestMessage(messageType);
-}
-
-bool NetworkClientWorker::checkSerializerError() {
-    if (m_serializer.lastError() != QAbstractProtobufSerializer::Error::None) {
-        qWarning().nospace()
-        << "Unable to deserialize ("
-        << qToUnderlying(m_serializer.lastError()) << ")"
-        << m_serializer.lastErrorString();
-        return true;
-    }
-    return false;
-}
-void NetworkClientWorker::onHeaderReceived(const asdc::net::Header &header) {
-    asdc::net::MessageType messageType = static_cast<asdc::net::MessageType>(header.messageType);
-
-    if (messageType == asdc::net::MessageType::CLOCK) {
-        asdc::proto::Clock message;
-        message.deserialize(&m_serializer, header.payload);
-        if (!checkSerializerError()) {
-            emit receivedMessageClock(message);
-        }
-    } else if (messageType == asdc::net::MessageType::CONFIGURATION) {
-        asdc::proto::Configuration message;
-        message.deserialize(&m_serializer, header.payload);
-        if (!checkSerializerError()) {
-            emit receivedMessageConfiguration(message);
-        }
-    } else if (messageType == asdc::net::MessageType::ERROR) {
-        asdc::proto::Error message;
-        message.deserialize(&m_serializer, header.payload);
-        if (!checkSerializerError()) {
-            emit receivedMessageError(message);
-        }
-    } else if (messageType == asdc::net::MessageType::FILTERS) {
-        asdc::proto::Filter message;
-        message.deserialize(&m_serializer, header.payload);
-        if (!checkSerializerError()) {
-            emit receivedMessageFilter(message);
-        }
-    } else if (messageType == asdc::net::MessageType::INFORMATION) {
-        asdc::proto::Information message;
-        message.deserialize(&m_serializer, header.payload);
-        if (!checkSerializerError()) {
-            emit receivedMessageInformation(message);
-        }
-    } else if (messageType == asdc::net::MessageType::LIVE) {
-        asdc::proto::Live message;
-        message.deserialize(&m_serializer, header.payload);
-        if (!checkSerializerError()) {
-            emit receivedMessageLive(message);
-        }
-    } else if (messageType == asdc::net::MessageType::ONZEN_LIVE) {
-        asdc::proto::OnzenLive message;
-        message.deserialize(&m_serializer, header.payload);
-        if (!checkSerializerError()) {
-            emit receivedMessageOnzenLive(message);
-        }
-    } else if (messageType == asdc::net::MessageType::ONZEN_SETTINGS) {
-        asdc::proto::OnzenSettings message;
-        message.deserialize(&m_serializer, header.payload);
-        if (!checkSerializerError()) {
-            emit receivedMessageOnzenSettings(message);
-        }
-    } else if (messageType == asdc::net::MessageType::PEAK) {
-        asdc::proto::Peak message;
-        message.deserialize(&m_serializer, header.payload);
-        if (!checkSerializerError()) {
-            emit receivedMessagePeak(message);
-        }
-    } else if (messageType == asdc::net::MessageType::PERIPHERAL) {
-        asdc::proto::Peripheral message;
-        message.deserialize(&m_serializer, header.payload);
-        if (!checkSerializerError()) {
-            emit receivedMessagePeripheral(message);
-        }
-    } else if (messageType == asdc::net::MessageType::SETTINGS) {
-        asdc::proto::Settings message;
-        message.deserialize(&m_serializer, header.payload);
-        if (!checkSerializerError()) {
-            emit receivedMessageSettings(message);
-        }
-    }
-}
-
-
-Core::Core(QObject *parent)
-    : QObject{parent}
-{
-    m_networkClientWorkerThread = new QThread(this);
+    // m_commands = new CommandsInterface(this);
 
     m_databaseClient = new asdc::db::DatabaseClient(this);
+    m_databaseClient->openDatabase(true);
 
-    NetworkClientWorker *worker = new NetworkClientWorker();
+
+    m_networkClientWorkerThread = new QThread(this);
+
+    asdc::net::NetworkClientWorker *worker = new asdc::net::NetworkClientWorker();
     worker->moveToThread(m_networkClientWorkerThread);
 
-    connect(m_networkClientWorkerThread, &QThread::finished, worker, &NetworkClientWorker::disconnectClient);
+    connect(m_networkClientWorkerThread, &QThread::finished, worker, &asdc::net::NetworkClientWorker::disconnectFromDevice);
     connect(m_networkClientWorkerThread, &QThread::finished, worker, &QObject::deleteLater);
     connect(m_networkClientWorkerThread, &QThread::finished, m_networkClientWorkerThread, &QObject::deleteLater);
 
-    connect(worker, &NetworkClientWorker::clientHostChanged, this, &Core::onWorkerClientHostChanged);
-    connect(worker, &NetworkClientWorker::clientConnected, this, &Core::onWorkerClientConnected);
-    connect(worker, &NetworkClientWorker::clientDisconnected, this, &Core::onWorkerClientDisconnected);
-    connect(worker, &NetworkClientWorker::clientStateChanged, this, &Core::onWorkerClientStateChanged);
-    connect(worker, &NetworkClientWorker::clientErrorOccurred, this, &Core::onWorkerClientErrorOccurred);
+    connect(worker, &asdc::net::NetworkClientWorker::hostChanged, this, &CoreInterface::onNetworkClientWorkerHostChanged);
+    connect(worker, &asdc::net::NetworkClientWorker::connected, this, &CoreInterface::onNetworkClientWorkerConnected);
+    connect(worker, &asdc::net::NetworkClientWorker::disconnected, this, &CoreInterface::onNetworkClientWorkerDisconnected);
+    connect(worker, &asdc::net::NetworkClientWorker::stateChanged, this, &CoreInterface::onNetworkClientWorkerStateChanged);
+    connect(worker, &asdc::net::NetworkClientWorker::errorOccurred, this, &CoreInterface::onNetworkClientWorkerErrorOccurred);
 
-    connect(this, &Core::workerClientConnect, worker, &NetworkClientWorker::connectClient);
-    connect(this, &Core::workerClientDisconnect, worker, &NetworkClientWorker::disconnectClient);
-    connect(this, &Core::workerClientQueueMessage, worker, &NetworkClientWorker::queueMessage);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageClock, this, &CoreInterface::setMessageClock);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageConfiguration, this, &CoreInterface::setMessageConfiguration);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageError, this, &CoreInterface::setMessageError);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageFilter, this, &CoreInterface::setMessageFilter);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageInformation, this, &CoreInterface::setMessageInformation);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageLive, this, &CoreInterface::setMessageLive);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageOnzenLive, this, &CoreInterface::setMessageOnzenLive);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageOnzenSettings, this, &CoreInterface::setMessageOnzenSettings);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessagePeak, this, &CoreInterface::setMessagePeak);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessagePeripheral, this, &CoreInterface::setMessagePeripheral);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageSettings, this, &CoreInterface::setMessageSettings);
 
-    connect(worker, &NetworkClientWorker::receivedMessageClock, this, &Core::setMessageClock);
-    connect(worker, &NetworkClientWorker::receivedMessageConfiguration, this, &Core::setMessageConfiguration);
-    connect(worker, &NetworkClientWorker::receivedMessageError, this, &Core::setMessageError);
-    connect(worker, &NetworkClientWorker::receivedMessageFilter, this, &Core::setMessageFilter);
-    connect(worker, &NetworkClientWorker::receivedMessageInformation, this, &Core::setMessageInformation);
-    connect(worker, &NetworkClientWorker::receivedMessageLive, this, &Core::setMessageLive);
-    connect(worker, &NetworkClientWorker::receivedMessageOnzenLive, this, &Core::setMessageOnzenLive);
-    connect(worker, &NetworkClientWorker::receivedMessageOnzenSettings, this, &Core::setMessageOnzenSettings);
-    connect(worker, &NetworkClientWorker::receivedMessagePeak, this, &Core::setMessagePeak);
-    connect(worker, &NetworkClientWorker::receivedMessagePeripheral, this, &Core::setMessagePeripheral);
-    connect(worker, &NetworkClientWorker::receivedMessageSettings, this, &Core::setMessageSettings);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageClock, m_databaseClient, &asdc::db::DatabaseClient::logMessageClock);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageConfiguration, m_databaseClient, &asdc::db::DatabaseClient::logMessageConfiguration);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageError, m_databaseClient, &asdc::db::DatabaseClient::logMessageError);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageFilter, m_databaseClient, &asdc::db::DatabaseClient::logMessageFilter);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageInformation, m_databaseClient, &asdc::db::DatabaseClient::logMessageInformation);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageLive, m_databaseClient, &asdc::db::DatabaseClient::logMessageLive);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageOnzenLive, m_databaseClient, &asdc::db::DatabaseClient::logMessageOnzenLive);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageOnzenSettings, m_databaseClient, &asdc::db::DatabaseClient::logMessageOnzenSettings);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessagePeak, m_databaseClient, &asdc::db::DatabaseClient::logMessagePeak);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessagePeripheral, m_databaseClient, &asdc::db::DatabaseClient::logMessagePeripheral);
+    connect(worker, &asdc::net::NetworkClientWorker::receivedMessageSettings, m_databaseClient, &asdc::db::DatabaseClient::logMessageSettings);
 
-    connect(
-        this,
-        &Core::messageClockChanged,
-        m_databaseClient,
-        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::CLOCK, &m_messageClock, m_messageClockReceivedAt); }
-    );
-    connect(
-        this,
-        &Core::messageConfigurationChanged,
-        m_databaseClient,
-        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::CONFIGURATION, &m_messageConfiguration, m_messageConfigurationReceivedAt); }
-    );
-    connect(
-        this,
-        &Core::messageErrorChanged,
-        m_databaseClient,
-        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::ERROR, &m_messageError, m_messageErrorReceivedAt); }
-    );
-    connect(
-        this,
-        &Core::messageFilterChanged,
-        m_databaseClient,
-        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::FILTERS, &m_messageFilter, m_messageFilterReceivedAt); }
-    );
-    connect(
-        this,
-        &Core::messageInformationChanged,
-        m_databaseClient,
-        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::INFORMATION, &m_messageInformation, m_messageInformationReceivedAt); }
-    );
-    connect(
-        this,
-        &Core::messageLiveChanged,
-        m_databaseClient,
-        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::LIVE, &m_messageLive, m_messageLiveReceivedAt); }
-    );
-    connect(
-        this,
-        &Core::messageOnzenLiveChanged,
-        m_databaseClient,
-        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::ONZEN_LIVE, &m_messageOnzenLive, m_messageOnzenLiveReceivedAt); }
-    );
-    connect(
-        this,
-        &Core::messageOnzenSettingsChanged,
-        m_databaseClient,
-        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::ONZEN_SETTINGS, &m_messageOnzenSettings, m_messageOnzenSettingsReceivedAt); }
-    );
-    connect(
-        this,
-        &Core::messagePeakChanged,
-        m_databaseClient,
-        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::PEAK, &m_messagePeak, m_messagePeakReceivedAt); }
-    );
-    connect(
-        this,
-        &Core::messagePeripheralChanged,
-        m_databaseClient,
-        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::PERIPHERAL, &m_messagePeripheral, m_messagePeripheralReceivedAt); }
-    );
-    connect(
-        this,
-        &Core::messageSettingsChanged,
-        m_databaseClient,
-        [this]() { m_databaseClient->writeMessage(asdc::net::MessageType::SETTINGS, &m_messageSettings, m_messageSettingsReceivedAt); }
-    );
-
-    m_databaseClient->openDatabase(true);
+    connect(this, &CoreInterface::networkClientWorkerConnectToDevice, worker, &asdc::net::NetworkClientWorker::connectToDevice);
+    connect(this, &CoreInterface::networkClientWorkerDisconnectFromDevice, worker, &asdc::net::NetworkClientWorker::disconnectFromDevice);
+    connect(this, &CoreInterface::networkClientWorkerQueueMessage, worker, &asdc::net::NetworkClientWorker::queueMessage);
+    connect(this, &CoreInterface::networkClientWorkerQueueCommand, worker, &asdc::net::NetworkClientWorker::queueCommand);
 
     m_networkClientWorkerThread->start();
 
 
-    test();
+    // test();
 }
-Core::~Core() {
+CoreInterface::~CoreInterface() {
     qDebug() << "quitting worker thread";
     m_networkClientWorkerThread->quit();
     m_networkClientWorkerThread->wait();
     qDebug() << "quit worker thread";
 }
 
-void Core::testDiscovery() {
-    asdc::net::DiscoveryClient discoveryClient;
-    discoveryClient.test();
 
-    discoveryClient.setIpAndMask("192.168.2.14", 24);
-    QStringList results = discoveryClient.search(/*timeoutMs*/ 1000, /*maxWorkers*/ 50);
-    qInfo() << "Found" << results.size() << "devices:" << results;
+void CoreInterface::testDiscovery() {
+    m_discoveryClientWorkerThread = new QThread(this);
+
+    asdc::net::DiscoveryClientWorker *worker = new asdc::net::DiscoveryClientWorker();
+    worker->moveToThread(m_discoveryClientWorkerThread);
+
+    connect(m_discoveryClientWorkerThread, &QThread::finished, worker, &QObject::deleteLater);
+    connect(m_discoveryClientWorkerThread, &QThread::finished, m_discoveryClientWorkerThread, &QObject::deleteLater);
+
+    connect(worker, &asdc::net::DiscoveryClientWorker::startedSearch, this, [this]() { setDiscoveryWorking(true); });
+    connect(worker, &asdc::net::DiscoveryClientWorker::finishedSearch, this, [this]() { setDiscoveryWorking(false); });
+    connect(worker, &asdc::net::DiscoveryClientWorker::hostFound, this, &CoreInterface::onDiscoveryClientWorkerHostFound);
+
+    connect(this, &CoreInterface::discoveryClientWorkerSearch, worker, &asdc::net::DiscoveryClientWorker::search);
+
+    m_discoveryClientWorkerThread->start();
+
+    emit discoveryClientWorkerSearch();
 }
-
-void Core::test() {
+void CoreInterface::test() {
 
     m_databaseClient->createConnectionSession("192.168.0.1");
 
@@ -260,14 +115,14 @@ void Core::test() {
 
         m_messageLive.setTemperatureFahrenheit(i * 2);
 
-        m_databaseClient->writeMessage(asdc::net::MessageType::LIVE, &m_messageLive, receivedAt);
+        m_databaseClient->logMessageLive(m_messageLive, receivedAt);
     }
 
     m_messageLiveReceivedAt = QDateTime::currentDateTime();
     m_messageLive.setTemperatureFahrenheit(101);
     m_messageLive.setTemperatureSetpointFahrenheit(103);
     m_messageLive.setPump1(asdc::proto::Live::PumpStatus(1));
-    setMessageLive(m_messageLive);
+    setMessageLive(m_messageLive, QDateTime::currentDateTime());
 
 
     // --------------------------------------------------
@@ -277,35 +132,35 @@ void Core::test() {
     m_messageOnzenLive.setPh100(600);
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_LOW);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_LOW);
-    setMessageOnzenLive(m_messageOnzenLive);
+    setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
 
     m_messageOnzenLive.setGuid("B0-test");
     m_messageOnzenLive.setOrp(500);
     m_messageOnzenLive.setPh100(690);
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_CAUTION_LOW);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_CAUTION_LOW);
-    setMessageOnzenLive(m_messageOnzenLive);
+    setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
 
     m_messageOnzenLive.setGuid("B1-test");
     m_messageOnzenLive.setOrp(620);
     m_messageOnzenLive.setPh100(720);
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_OK);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_OK);
-    setMessageOnzenLive(m_messageOnzenLive);
+    setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
 
     m_messageOnzenLive.setGuid("C0-test");
     m_messageOnzenLive.setOrp(710);
     m_messageOnzenLive.setPh100(750);
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_CAUTION_HIGH);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_CAUTION_HIGH);
-    setMessageOnzenLive(m_messageOnzenLive);
+    setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
 
     m_messageOnzenLive.setGuid("D0-test");
     m_messageOnzenLive.setOrp(850);
     m_messageOnzenLive.setPh100(794);
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_HIGH);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_HIGH);
-    setMessageOnzenLive(m_messageOnzenLive);
+    setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
 
 
     m_messageOnzenLive.setGuid("test");
@@ -313,213 +168,382 @@ void Core::test() {
     m_messageOnzenLive.setPh100(722);
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_OK);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_OK);
-    setMessageOnzenLive(m_messageOnzenLive);
+    setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
 
 
     m_messageSettings.setMinTemperature(52);
     m_messageSettings.setMaxTemperature(104);
-    setMessageSettings(m_messageSettings);
+    setMessageSettings(m_messageSettings, QDateTime::currentDateTime());
 }
 
-void Core::connectClient(const QString &host) {
-    emit workerClientConnect(host);
+
+void CoreInterface::networkConnectToDevice(const QString &host) {
+    emit networkClientWorkerConnectToDevice(host);
 }
-void Core::disconnectClient() {
-    emit workerClientDisconnect();
+void CoreInterface::networkDisconnectFromDevice() {
+    emit networkClientWorkerDisconnectFromDevice();
 }
 
-QString Core::clientHost() const {
-    return m_clientHost;
-}
-QAbstractSocket::SocketState Core::clientState() const {
-    return m_clientState;
-}
-QAbstractSocket::SocketError Core::clientError() const {
-    return m_clientError;
+bool CoreInterface::discoveryWorking() const {
+    return m_discoveryWorking;
 }
 
-void Core::onWorkerClientHostChanged(const QString &host) {
-    m_clientHost = host;
-    qDebug() << m_clientHost;
-    m_databaseClient->createConnectionSession(m_clientHost);
-    emit clientHostChanged();
+QString CoreInterface::networkHost() const {
+    return m_networkHost;
 }
-void Core::onWorkerClientConnected() {
+QAbstractSocket::SocketState CoreInterface::networkState() const {
+    return m_networkState;
+}
+QAbstractSocket::SocketError CoreInterface::networkError() const {
+    return m_networkError;
+}
+
+void CoreInterface::onNetworkClientWorkerHostChanged(const QString &host) {
+    m_networkHost = host;
+    m_databaseClient->createConnectionSession(m_networkHost);
+    qDebug() << m_networkHost;
+    emit networkHostChanged();
+}
+void CoreInterface::onNetworkClientWorkerConnected() {
     qDebug() << "worker client connected";
-    emit clientConnected();
+    emit networkConnected();
 }
-void Core::onWorkerClientDisconnected() {
+void CoreInterface::onNetworkClientWorkerDisconnected() {
     qDebug() << "worker client disconnected";
-    emit clientDisconnected();
+    emit networkDisconnected();
 }
-void Core::onWorkerClientStateChanged(QAbstractSocket::SocketState socketState) {
-    m_clientState = socketState;
-    qDebug() << m_clientState;
-    emit clientStateChanged();
+void CoreInterface::onNetworkClientWorkerStateChanged(QAbstractSocket::SocketState socketState) {
+    m_networkState = socketState;
+    qDebug() << m_networkState;
+    emit networkStateChanged();
 }
-void Core::onWorkerClientErrorOccurred(QAbstractSocket::SocketError socketError) {
-    m_clientError = socketError;
-    qDebug() << m_clientError;
-    emit clientErrorOccurred();
+void CoreInterface::onNetworkClientWorkerErrorOccurred(QAbstractSocket::SocketError socketError) {
+    m_networkError = socketError;
+    qDebug() << m_networkError;
+    emit networkErrorOccurred();
 }
 
-asdc::proto::Clock Core::messageClock() const {
+void CoreInterface::setDiscoveryWorking(bool working) {
+    if (m_discoveryWorking && !working) {
+        m_discoveryClientWorkerThread->quit();
+        m_discoveryClientWorkerThread->wait();
+    }
+
+    m_discoveryWorking = working;
+    qDebug() << m_discoveryWorking;
+    emit discoveryWorkingChanged();
+}
+void CoreInterface::onDiscoveryClientWorkerHostFound(const QString &host) {
+    qDebug() << "found host" << host;
+}
+
+asdc::proto::Clock CoreInterface::messageClock() const {
     return m_messageClock;
 }
-asdc::proto::Configuration Core::messageConfiguration() const {
+asdc::proto::Configuration CoreInterface::messageConfiguration() const {
     return m_messageConfiguration;
 }
-asdc::proto::Error Core::messageError() const {
+asdc::proto::Error CoreInterface::messageError() const {
     return m_messageError;
 }
-asdc::proto::Filter Core::messageFilter() const {
+asdc::proto::Filter CoreInterface::messageFilter() const {
     return m_messageFilter;
 }
-asdc::proto::Information Core::messageInformation() const {
+asdc::proto::Information CoreInterface::messageInformation() const {
     return m_messageInformation;
 }
-asdc::proto::Live Core::messageLive() const {
+asdc::proto::Live CoreInterface::messageLive() const {
     return m_messageLive;
 }
-asdc::proto::OnzenLive Core::messageOnzenLive() const {
+asdc::proto::OnzenLive CoreInterface::messageOnzenLive() const {
     return m_messageOnzenLive;
 }
-asdc::proto::OnzenSettings Core::messageOnzenSettings() const {
+asdc::proto::OnzenSettings CoreInterface::messageOnzenSettings() const {
     return m_messageOnzenSettings;
 }
-asdc::proto::Peak Core::messagePeak() const {
+asdc::proto::Peak CoreInterface::messagePeak() const {
     return m_messagePeak;
 }
-asdc::proto::Peripheral Core::messagePeripheral() const {
+asdc::proto::Peripheral CoreInterface::messagePeripheral() const {
     return m_messagePeripheral;
 }
-asdc::proto::Settings Core::messageSettings() const {
+asdc::proto::Settings CoreInterface::messageSettings() const {
     return m_messageSettings;
 }
 
-QDateTime Core::messageClockReceivedAt() const {
+QDateTime CoreInterface::messageClockReceivedAt() const {
     return m_messageClockReceivedAt;
 }
-QDateTime Core::messageConfigurationReceivedAt() const {
+QDateTime CoreInterface::messageConfigurationReceivedAt() const {
     return m_messageConfigurationReceivedAt;
 }
-QDateTime Core::messageErrorReceivedAt() const {
+QDateTime CoreInterface::messageErrorReceivedAt() const {
     return m_messageErrorReceivedAt;
 }
-QDateTime Core::messageFilterReceivedAt() const {
+QDateTime CoreInterface::messageFilterReceivedAt() const {
     return m_messageFilterReceivedAt;
 }
-QDateTime Core::messageInformationReceivedAt() const {
+QDateTime CoreInterface::messageInformationReceivedAt() const {
     return m_messageInformationReceivedAt;
 }
-QDateTime Core::messageLiveReceivedAt() const {
+QDateTime CoreInterface::messageLiveReceivedAt() const {
     return m_messageLiveReceivedAt;
 }
-QDateTime Core::messageOnzenLiveReceivedAt() const {
+QDateTime CoreInterface::messageOnzenLiveReceivedAt() const {
     return m_messageOnzenLiveReceivedAt;
 }
-QDateTime Core::messageOnzenSettingsReceivedAt() const {
+QDateTime CoreInterface::messageOnzenSettingsReceivedAt() const {
     return m_messageOnzenSettingsReceivedAt;
 }
-QDateTime Core::messagePeakReceivedAt() const {
+QDateTime CoreInterface::messagePeakReceivedAt() const {
     return m_messagePeakReceivedAt;
 }
-QDateTime Core::messagePeripheralReceivedAt() const {
+QDateTime CoreInterface::messagePeripheralReceivedAt() const {
     return m_messagePeripheralReceivedAt;
 }
-QDateTime Core::messageSettingsReceivedAt() const {
+QDateTime CoreInterface::messageSettingsReceivedAt() const {
     return m_messageSettingsReceivedAt;
 }
 
-void Core::setMessageClock(asdc::proto::Clock message) {
+void CoreInterface::setMessageClock(const asdc::proto::Clock &message, const QDateTime &messageReceivedAt) {
     m_messageClock = message;
-    m_messageClockReceivedAt = QDateTime::currentDateTime();
+    m_messageClockReceivedAt = messageReceivedAt;
     emit messageClockChanged();
 }
-void Core::setMessageConfiguration(asdc::proto::Configuration message) {
+void CoreInterface::setMessageConfiguration(const asdc::proto::Configuration &message, const QDateTime &messageReceivedAt) {
     m_messageConfiguration = message;
-    m_messageConfigurationReceivedAt = QDateTime::currentDateTime();
+    m_messageConfigurationReceivedAt = messageReceivedAt;
     emit messageConfigurationChanged();
 }
-void Core::setMessageError(asdc::proto::Error message) {
+void CoreInterface::setMessageError(const asdc::proto::Error &message, const QDateTime &messageReceivedAt) {
     m_messageError = message;
-    m_messageErrorReceivedAt = QDateTime::currentDateTime();
+    m_messageErrorReceivedAt = messageReceivedAt;
     emit messageErrorChanged();
 }
-void Core::setMessageFilter(asdc::proto::Filter message) {
+void CoreInterface::setMessageFilter(const asdc::proto::Filter &message, const QDateTime &messageReceivedAt) {
     m_messageFilter = message;
-    m_messageFilterReceivedAt = QDateTime::currentDateTime();
+    m_messageFilterReceivedAt = messageReceivedAt;
     emit messageFilterChanged();
 }
-void Core::setMessageInformation(asdc::proto::Information message) {
+void CoreInterface::setMessageInformation(const asdc::proto::Information &message, const QDateTime &messageReceivedAt) {
     m_messageInformation = message;
-    m_messageInformationReceivedAt = QDateTime::currentDateTime();
+    m_messageInformationReceivedAt = messageReceivedAt;
     emit messageInformationChanged();
 }
-void Core::setMessageLive(asdc::proto::Live message) {
+void CoreInterface::setMessageLive(const asdc::proto::Live &message, const QDateTime &messageReceivedAt) {
     m_messageLive = message;
-    m_messageLiveReceivedAt = QDateTime::currentDateTime();
+    m_messageLiveReceivedAt = messageReceivedAt;
     emit messageLiveChanged();
 }
-void Core::setMessageOnzenLive(asdc::proto::OnzenLive message) {
+void CoreInterface::setMessageOnzenLive(const asdc::proto::OnzenLive &message, const QDateTime &messageReceivedAt) {
     m_messageOnzenLive = message;
-    m_messageOnzenLiveReceivedAt = QDateTime::currentDateTime();
+    m_messageOnzenLiveReceivedAt = messageReceivedAt;
     emit messageOnzenLiveChanged();
 }
-void Core::setMessageOnzenSettings(asdc::proto::OnzenSettings message) {
+void CoreInterface::setMessageOnzenSettings(const asdc::proto::OnzenSettings &message, const QDateTime &messageReceivedAt) {
     m_messageOnzenSettings = message;
-    m_messageOnzenSettingsReceivedAt = QDateTime::currentDateTime();
+    m_messageOnzenSettingsReceivedAt = messageReceivedAt;
     emit messageOnzenSettingsChanged();
 }
-void Core::setMessagePeak(asdc::proto::Peak message) {
+void CoreInterface::setMessagePeak(const asdc::proto::Peak &message, const QDateTime &messageReceivedAt) {
     m_messagePeak = message;
-    m_messagePeakReceivedAt = QDateTime::currentDateTime();
+    m_messagePeakReceivedAt = messageReceivedAt;
     emit messagePeakChanged();
 }
-void Core::setMessagePeripheral(asdc::proto::Peripheral message) {
+void CoreInterface::setMessagePeripheral(const asdc::proto::Peripheral &message, const QDateTime &messageReceivedAt) {
     m_messagePeripheral = message;
-    m_messagePeripheralReceivedAt = QDateTime::currentDateTime();
+    m_messagePeripheralReceivedAt = messageReceivedAt;
     emit messagePeripheralChanged();
 }
-void Core::setMessageSettings(asdc::proto::Settings message) {
+void CoreInterface::setMessageSettings(const asdc::proto::Settings &message, const QDateTime &messageReceivedAt) {
     m_messageSettings = message;
-    m_messageSettingsReceivedAt = QDateTime::currentDateTime();
+    m_messageSettingsReceivedAt = messageReceivedAt;
     emit messageSettingsChanged();
 }
 
-void Core::refreshMessageClock() {
-    emit workerClientQueueMessage(asdc::net::MessageType::CLOCK);
+void CoreInterface::refreshMessageClock() {
+    emit networkClientWorkerQueueMessage(asdc::net::MessageType::CLOCK);
 }
-void Core::refreshMessageConfiguration() {
-    emit workerClientQueueMessage(asdc::net::MessageType::CONFIGURATION);
+void CoreInterface::refreshMessageConfiguration() {
+    emit networkClientWorkerQueueMessage(asdc::net::MessageType::CONFIGURATION);
 }
-void Core::refreshMessageError() {
-    emit workerClientQueueMessage(asdc::net::MessageType::ERROR);
+void CoreInterface::refreshMessageError() {
+    emit networkClientWorkerQueueMessage(asdc::net::MessageType::ERROR);
 }
-void Core::refreshMessageFilter() {
-    emit workerClientQueueMessage(asdc::net::MessageType::FILTERS);
+void CoreInterface::refreshMessageFilter() {
+    emit networkClientWorkerQueueMessage(asdc::net::MessageType::FILTERS);
 }
-void Core::refreshMessageInformation() {
-    emit workerClientQueueMessage(asdc::net::MessageType::INFORMATION);
+void CoreInterface::refreshMessageInformation() {
+    emit networkClientWorkerQueueMessage(asdc::net::MessageType::INFORMATION);
 }
-void Core::refreshMessageLive() {
-    emit workerClientQueueMessage(asdc::net::MessageType::LIVE);
+void CoreInterface::refreshMessageLive() {
+    emit networkClientWorkerQueueMessage(asdc::net::MessageType::LIVE);
 }
-void Core::refreshMessageOnzenLive() {
-    emit workerClientQueueMessage(asdc::net::MessageType::ONZEN_LIVE);
+void CoreInterface::refreshMessageOnzenLive() {
+    emit networkClientWorkerQueueMessage(asdc::net::MessageType::ONZEN_LIVE);
 }
-void Core::refreshMessageOnzenSettings() {
-    emit workerClientQueueMessage(asdc::net::MessageType::ONZEN_SETTINGS);
+void CoreInterface::refreshMessageOnzenSettings() {
+    emit networkClientWorkerQueueMessage(asdc::net::MessageType::ONZEN_SETTINGS);
 }
-void Core::refreshMessagePeak() {
-    emit workerClientQueueMessage(asdc::net::MessageType::PEAK);
+void CoreInterface::refreshMessagePeak() {
+    emit networkClientWorkerQueueMessage(asdc::net::MessageType::PEAK);
 }
-void Core::refreshMessagePeripheral() {
-    emit workerClientQueueMessage(asdc::net::MessageType::PERIPHERAL);
+void CoreInterface::refreshMessagePeripheral() {
+    emit networkClientWorkerQueueMessage(asdc::net::MessageType::PERIPHERAL);
 }
-void Core::refreshMessageSettings() {
-    emit workerClientQueueMessage(asdc::net::MessageType::SETTINGS);
+void CoreInterface::refreshMessageSettings() {
+    emit networkClientWorkerQueueMessage(asdc::net::MessageType::SETTINGS);
 }
 
+bool CoreInterface::isCommandIntValid(const QString &name, qint32 value) {
+    if (name == "setTemperatureSetpointFahrenheit") {
+        if (value < m_messageSettings.minTemperature() || value > m_messageSettings.maxTemperature()) {
+            qWarning() << "invalid value for:" << name << "- got" << value
+                       << "; expected between minTemperature" << m_messageSettings.minTemperature()
+                       << "and maxTemperature" << m_messageSettings.maxTemperature();
+            return false;
+        }
+    } else if (name.startsWith("setPump") || name.startsWith("setBlower")) {
+        int max = 2;
+        if (value < 0 || value > max) {
+            qWarning() << "invalid value for:" << name << "- got" << value
+                       << "; expected between 0 and" << max;
+            return false;
+        }
+    } else if (name == "setSaunaState") {
+        int max = 4;
+        if (value < 0 || value > max) {
+            qWarning() << "invalid value for:" << name << "- got" << value
+                       << "; expected between 0 and" << max;
+            return false;
+        }
+    }
+    return true;
+}
+void CoreInterface::sendCommand(const QString &name, const QVariant &value) {
+    QString propertyName = name;
+    propertyName.remove(0, 3);
+    propertyName[0] = propertyName[0].toLower();
+
+    QVariant previousValue = m_messageLive.property(propertyName);
+
+    if (!previousValue.isValid()) {
+        previousValue = "";
+    }
+
+    m_databaseClient->logCommand(name, previousValue, value, QDateTime::currentDateTime());
+    emit networkClientWorkerQueueCommand(name, value);
+}
+
+void CoreInterface::commandSetTemperatureSetpointFahrenheit(qint32 value) {
+    const QString name = "setTemperatureSetpointFahrenheit";
+    if (isCommandIntValid(name, value)) {
+        sendCommand(name, value);
+    }
+}
+void CoreInterface::commandSetPump1(qint32 value) {
+    const QString name = "setPump1";
+    if (isCommandIntValid(name, value)) {
+        sendCommand(name, value);
+    }
+}
+void CoreInterface::commandSetPump2(qint32 value) {
+    const QString name = "setPump2";
+    if (isCommandIntValid(name, value)) {
+        sendCommand(name, value);
+    }
+}
+void CoreInterface::commandSetPump3(qint32 value) {
+    const QString name = "setPump3";
+    if (isCommandIntValid(name, value)) {
+        sendCommand(name, value);
+    }
+}
+void CoreInterface::commandSetPump4(qint32 value) {
+    const QString name = "setPump4";
+    if (isCommandIntValid(name, value)) {
+        sendCommand(name, value);
+    }
+}
+void CoreInterface::commandSetPump5(qint32 value) {
+    const QString name = "setPump5";
+    if (isCommandIntValid(name, value)) {
+        sendCommand(name, value);
+    }
+}
+void CoreInterface::commandSetBlower1(qint32 value) {
+    const QString name = "setBlower1";
+    if (isCommandIntValid(name, value)) {
+        sendCommand(name, value);
+    }
+}
+void CoreInterface::commandSetBlower2(qint32 value) {
+    const QString name = "setBlower2";
+    if (isCommandIntValid(name, value)) {
+        sendCommand(name, value);
+    }
+}
+void CoreInterface::commandSetLights(bool value) {
+    const QString name = "setLights";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetStereo(bool value) {
+    const QString name = "setStereo";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetFilter(bool value) {
+    const QString name = "setFilter";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetOnzen(bool value) {
+    const QString name = "setOnzen";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetOzone(bool value) {
+    const QString name = "setOzone";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetExhaustFan(bool value) {
+    const QString name = "setExhaustFan";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetSaunaState(qint32 value) {
+    const QString name = "setSaunaState";
+    if (isCommandIntValid(name, value)) {
+        sendCommand(name, value);
+    }
+}
+void CoreInterface::commandSetSaunaTimeLeft(qint32 value) {
+    const QString name = "setSaunaTimeLeft";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetAllOn(bool value) {
+    const QString name = "setAllOn";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetFogger(bool value) {
+    const QString name = "setFogger";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetSpaboyBoost(bool value) {
+    const QString name = "setSpaboyBoost";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetPackReset(bool value) {
+    const QString name = "setPackReset";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetLogDump(bool value) {
+    const QString name = "setLogDump";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetSds(bool value) {
+    const QString name = "setSds";
+    sendCommand(name, value);
+}
+void CoreInterface::commandSetYess(bool value) {
+    const QString name = "setYess";
+    sendCommand(name, value);
+}
 
 };  // namespace asdc

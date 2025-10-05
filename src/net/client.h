@@ -3,9 +3,23 @@
 
 #include <QObject>
 #include <QAbstractSocket>
+#include <QtProtobuf/QProtobufSerializer>
 
 
 QT_FORWARD_DECLARE_CLASS(QTcpSocket)
+
+
+#include "asdc/proto/Clock.qpb.h"
+#include "asdc/proto/Configuration.qpb.h"
+#include "asdc/proto/Error.qpb.h"
+#include "asdc/proto/Filter.qpb.h"
+#include "asdc/proto/Information.qpb.h"
+#include "asdc/proto/Live.qpb.h"
+#include "asdc/proto/OnzenLive.qpb.h"
+#include "asdc/proto/OnzenSettings.qpb.h"
+#include "asdc/proto/Peak.qpb.h"
+#include "asdc/proto/Peripheral.qpb.h"
+#include "asdc/proto/Settings.qpb.h"
 
 
 namespace asdc::net {
@@ -100,10 +114,11 @@ public:
     QAbstractSocket::SocketState state() const;
     QAbstractSocket::SocketError error() const;
 
+public:
     // void decodeOne(const QByteArray &data);
-    bool requestMessage(const MessageType &messageType);
+    bool writePacket(const MessageType &messageType, const QByteArray &payload = QByteArray());
 
-private slots:
+private:
     void readAndParseData();
 
 private:
@@ -113,12 +128,55 @@ private:
 
 signals:
     void hostChanged(const QString &host);
-    void portChanged(const quint16 &port);
+    void portChanged(quint16 port);
     void connected();
     void disconnected();
     void stateChanged(QAbstractSocket::SocketState socketState);
     void errorOccurred(QAbstractSocket::SocketError socketError);
     void headerReceived(const asdc::net::Header &header);
+};
+
+class NetworkClientWorker : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit NetworkClientWorker(QObject *parent = nullptr);
+
+public slots:
+    void connectToDevice(const QString &host);
+    void disconnectFromDevice();
+
+    void queueMessage(const MessageType &messageType);
+    void queueCommand(const QString &name, const QVariant &value);
+
+private:
+    bool serializerHasError();
+    void onHeaderReceived(const Header &header);
+
+private:
+    NetworkClient *m_networkClient;
+    QProtobufSerializer m_serializer;
+
+signals:
+    void hostChanged(const QString &host);
+    void portChanged(quint16 port);
+    void connected();
+    void disconnected();
+    void stateChanged(QAbstractSocket::SocketState socketState);
+    void errorOccurred(QAbstractSocket::SocketError socketError);
+
+    void receivedMessageClock(const asdc::proto::Clock &message, const QDateTime &messageReceivedAt);
+    void receivedMessageConfiguration(const asdc::proto::Configuration &message, const QDateTime &messageReceivedAt);
+    void receivedMessageError(const asdc::proto::Error &message, const QDateTime &messageReceivedAt);
+    void receivedMessageFilter(const asdc::proto::Filter &message, const QDateTime &messageReceivedAt);
+    void receivedMessageInformation(const asdc::proto::Information &message, const QDateTime &messageReceivedAt);
+    void receivedMessageLive(const asdc::proto::Live &message, const QDateTime &messageReceivedAt);
+    void receivedMessageOnzenLive(const asdc::proto::OnzenLive &message, const QDateTime &messageReceivedAt);
+    void receivedMessageOnzenSettings(const asdc::proto::OnzenSettings &message, const QDateTime &messageReceivedAt);
+    void receivedMessagePeak(const asdc::proto::Peak &message, const QDateTime &messageReceivedAt);
+    void receivedMessagePeripheral(const asdc::proto::Peripheral &message, const QDateTime &messageReceivedAt);
+    void receivedMessageSettings(const asdc::proto::Settings &message, const QDateTime &messageReceivedAt);
 };
 
 };  // namespace asdc::net

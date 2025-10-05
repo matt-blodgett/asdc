@@ -21,69 +21,29 @@
 #include "asdc/proto/Settings.qpb.h"
 
 
-namespace asdc::net {
-enum class MessageType;
-struct Header;
-class NetworkClient;
-}
-
 namespace asdc::db {
 class DatabaseClient;
+}
+
+namespace asdc::net {
+enum class MessageType;
 }
 
 
 namespace asdc::core {
 
 
-class NetworkClientWorker : public QObject {
-    Q_OBJECT
-
-public:
-    explicit NetworkClientWorker(QObject *parent = nullptr);
-
-public slots:
-    void connectClient(const QString &host);
-    void disconnectClient();
-    void queueMessage(const asdc::net::MessageType &messageType);
-
-private:
-    bool checkSerializerError();
-    void onHeaderReceived(const asdc::net::Header &header);
-
-private:
-    asdc::net::NetworkClient *m_networkClient;
-    QProtobufSerializer m_serializer;
-
-signals:
-    void clientHostChanged(const QString &host);
-    void clientPortChanged(const quint16 &port);
-    void clientConnected();
-    void clientDisconnected();
-    void clientStateChanged(QAbstractSocket::SocketState socketState);
-    void clientErrorOccurred(QAbstractSocket::SocketError socketError);
-
-    void receivedMessageClock(asdc::proto::Clock message);
-    void receivedMessageConfiguration(asdc::proto::Configuration message);
-    void receivedMessageError(asdc::proto::Error message);
-    void receivedMessageFilter(asdc::proto::Filter message);
-    void receivedMessageInformation(asdc::proto::Information message);
-    void receivedMessageLive(asdc::proto::Live message);
-    void receivedMessageOnzenLive(asdc::proto::OnzenLive message);
-    void receivedMessageOnzenSettings(asdc::proto::OnzenSettings message);
-    void receivedMessagePeak(asdc::proto::Peak message);
-    void receivedMessagePeripheral(asdc::proto::Peripheral message);
-    void receivedMessageSettings(asdc::proto::Settings message);
-};
-
-class Core : public QObject
+class CoreInterface : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
     QML_SINGLETON
 
-    Q_PROPERTY(QString clientHost READ clientHost NOTIFY clientHostChanged)
-    Q_PROPERTY(QAbstractSocket::SocketState clientState READ clientState NOTIFY clientStateChanged)
-    Q_PROPERTY(QAbstractSocket::SocketError clientError READ clientError NOTIFY clientErrorOccurred)
+    Q_PROPERTY(bool discoveryWorking READ discoveryWorking NOTIFY discoveryWorkingChanged)
+
+    Q_PROPERTY(QString networkHost READ networkHost NOTIFY networkHostChanged)
+    Q_PROPERTY(QAbstractSocket::SocketState networkState READ networkState NOTIFY networkStateChanged)
+    Q_PROPERTY(QAbstractSocket::SocketError networkError READ networkError NOTIFY networkErrorOccurred)
 
     Q_PROPERTY(asdc::proto::Clock messageClock READ messageClock NOTIFY messageClockChanged)
     Q_PROPERTY(asdc::proto::Configuration messageConfiguration READ messageConfiguration NOTIFY messageConfigurationChanged)
@@ -110,8 +70,8 @@ class Core : public QObject
     Q_PROPERTY(QDateTime messageSettingsReceivedAt READ messageSettingsReceivedAt NOTIFY messageSettingsChanged)
 
 public:
-    explicit Core(QObject *parent = nullptr);
-    ~Core();
+    explicit CoreInterface(QObject *parent = nullptr);
+    ~CoreInterface();
 
     Q_INVOKABLE void testDiscovery();
 
@@ -119,20 +79,25 @@ private:
     void test();
 
 public:
-    Q_INVOKABLE void connectClient(const QString &host);
-    Q_INVOKABLE void disconnectClient();
+    Q_INVOKABLE void networkConnectToDevice(const QString &host);
+    Q_INVOKABLE void networkDisconnectFromDevice();
 
-private slots:
-    void onWorkerClientHostChanged(const QString &host);
-    void onWorkerClientConnected();
-    void onWorkerClientDisconnected();
-    void onWorkerClientStateChanged(QAbstractSocket::SocketState socketState);
-    void onWorkerClientErrorOccurred(QAbstractSocket::SocketError socketError);
+private:
+    void onNetworkClientWorkerHostChanged(const QString &host);
+    void onNetworkClientWorkerConnected();
+    void onNetworkClientWorkerDisconnected();
+    void onNetworkClientWorkerStateChanged(QAbstractSocket::SocketState socketState);
+    void onNetworkClientWorkerErrorOccurred(QAbstractSocket::SocketError socketError);
+
+    void setDiscoveryWorking(bool working);
+    void onDiscoveryClientWorkerHostFound(const QString &host);
 
 public:
-    QString clientHost() const;
-    QAbstractSocket::SocketState clientState() const;
-    QAbstractSocket::SocketError clientError() const;
+    bool discoveryWorking() const;
+
+    QString networkHost() const;
+    QAbstractSocket::SocketState networkState() const;
+    QAbstractSocket::SocketError networkError() const;
 
     asdc::proto::Clock messageClock() const;
     asdc::proto::Configuration messageConfiguration() const;
@@ -158,18 +123,18 @@ public:
     QDateTime messagePeripheralReceivedAt() const;
     QDateTime messageSettingsReceivedAt() const;
 
-private slots:
-    void setMessageClock(asdc::proto::Clock message);
-    void setMessageConfiguration(asdc::proto::Configuration message);
-    void setMessageError(asdc::proto::Error message);
-    void setMessageFilter(asdc::proto::Filter message);
-    void setMessageInformation(asdc::proto::Information message);
-    void setMessageLive(asdc::proto::Live message);
-    void setMessageOnzenLive(asdc::proto::OnzenLive message);
-    void setMessageOnzenSettings(asdc::proto::OnzenSettings message);
-    void setMessagePeak(asdc::proto::Peak message);
-    void setMessagePeripheral(asdc::proto::Peripheral message);
-    void setMessageSettings(asdc::proto::Settings message);
+private:
+    void setMessageClock(const asdc::proto::Clock &message, const QDateTime &messageReceivedAt);
+    void setMessageConfiguration(const asdc::proto::Configuration &message, const QDateTime &messageReceivedAt);
+    void setMessageError(const asdc::proto::Error &message, const QDateTime &messageReceivedAt);
+    void setMessageFilter(const asdc::proto::Filter &message, const QDateTime &messageReceivedAt);
+    void setMessageInformation(const asdc::proto::Information &message, const QDateTime &messageReceivedAt);
+    void setMessageLive(const asdc::proto::Live &message, const QDateTime &messageReceivedAt);
+    void setMessageOnzenLive(const asdc::proto::OnzenLive &message, const QDateTime &messageReceivedAt);
+    void setMessageOnzenSettings(const asdc::proto::OnzenSettings &message, const QDateTime &messageReceivedAt);
+    void setMessagePeak(const asdc::proto::Peak &message, const QDateTime &messageReceivedAt);
+    void setMessagePeripheral(const asdc::proto::Peripheral &message, const QDateTime &messageReceivedAt);
+    void setMessageSettings(const asdc::proto::Settings &message, const QDateTime &messageReceivedAt);
 
 public:
     Q_INVOKABLE void refreshMessageClock();
@@ -185,13 +150,45 @@ public:
     Q_INVOKABLE void refreshMessageSettings();
 
 private:
-    QThread *m_networkClientWorkerThread;
+    bool isCommandIntValid(const QString &name, qint32 value);
+    void sendCommand(const QString &name, const QVariant &value);
 
-    asdc::db::DatabaseClient *m_databaseClient;
+public:
+    Q_INVOKABLE void commandSetTemperatureSetpointFahrenheit(qint32 value);
+    Q_INVOKABLE void commandSetPump1(qint32 value);
+    Q_INVOKABLE void commandSetPump2(qint32 value);
+    Q_INVOKABLE void commandSetPump3(qint32 value);
+    Q_INVOKABLE void commandSetPump4(qint32 value);
+    Q_INVOKABLE void commandSetPump5(qint32 value);
+    Q_INVOKABLE void commandSetBlower1(qint32 value);
+    Q_INVOKABLE void commandSetBlower2(qint32 value);
+    Q_INVOKABLE void commandSetLights(bool value);
+    Q_INVOKABLE void commandSetStereo(bool value);
+    Q_INVOKABLE void commandSetFilter(bool value);
+    Q_INVOKABLE void commandSetOnzen(bool value);
+    Q_INVOKABLE void commandSetOzone(bool value);
+    Q_INVOKABLE void commandSetExhaustFan(bool value);
+    Q_INVOKABLE void commandSetSaunaState(qint32 value);
+    Q_INVOKABLE void commandSetSaunaTimeLeft(qint32 value);
+    Q_INVOKABLE void commandSetAllOn(bool value);
+    Q_INVOKABLE void commandSetFogger(bool value);
+    Q_INVOKABLE void commandSetSpaboyBoost(bool value);
+    Q_INVOKABLE void commandSetPackReset(bool value);
+    Q_INVOKABLE void commandSetLogDump(bool value);
+    Q_INVOKABLE void commandSetSds(bool value);
+    Q_INVOKABLE void commandSetYess(bool value);
 
-    QString m_clientHost;
-    QAbstractSocket::SocketState m_clientState = QAbstractSocket::SocketState::UnconnectedState;
-    QAbstractSocket::SocketError m_clientError = QAbstractSocket::SocketError::UnknownSocketError;
+private:
+    asdc::db::DatabaseClient *m_databaseClient = nullptr;
+
+    QThread *m_networkClientWorkerThread = nullptr;
+    QThread *m_discoveryClientWorkerThread = nullptr;
+
+    bool m_discoveryWorking = false;
+
+    QString m_networkHost;
+    QAbstractSocket::SocketState m_networkState = QAbstractSocket::SocketState::UnconnectedState;
+    QAbstractSocket::SocketError m_networkError = QAbstractSocket::SocketError::UnknownSocketError;
 
     asdc::proto::Clock m_messageClock;
     asdc::proto::Configuration m_messageConfiguration;
@@ -216,17 +213,22 @@ private:
     QDateTime m_messagePeakReceivedAt;
     QDateTime m_messagePeripheralReceivedAt;
     QDateTime m_messageSettingsReceivedAt;
-
+\
 signals:
-    void workerClientConnect(const QString &host);
-    void workerClientDisconnect();
-    void workerClientQueueMessage(const asdc::net::MessageType &messageType);
+    void networkClientWorkerConnectToDevice(const QString &host);
+    void networkClientWorkerDisconnectFromDevice();
+    void networkClientWorkerQueueMessage(const asdc::net::MessageType &messageType);
+    void networkClientWorkerQueueCommand(const QString &name, const QVariant &value);
 
-    void clientHostChanged();
-    void clientConnected();
-    void clientDisconnected();
-    void clientStateChanged();
-    void clientErrorOccurred();
+    void discoveryClientWorkerSearch();
+
+    void discoveryWorkingChanged();
+
+    void networkHostChanged();
+    void networkConnected();
+    void networkDisconnected();
+    void networkStateChanged();
+    void networkErrorOccurred();
 
     void messageClockChanged();
     void messageConfigurationChanged();
@@ -239,6 +241,7 @@ signals:
     void messagePeakChanged();
     void messagePeripheralChanged();
     void messageSettingsChanged();
+
 };
 
 };  // namespace asdc::core

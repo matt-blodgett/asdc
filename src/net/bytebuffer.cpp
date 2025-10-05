@@ -1,6 +1,7 @@
 #include "bytebuffer.h"
 
 #include <QBuffer>
+#include <QDebug>
 
 
 // Packs a qint32 into a 4-byte array in big-endian order
@@ -34,6 +35,11 @@ void ByteBuffer::putIntAt(qint64 pos, qint32 value) {
     m_stream.device()->seek(pos);
     m_stream.device()->write(packed);
     m_stream.device()->seek(currentPos);
+}
+void ByteBuffer::putBytesAt(qint64 pos, const QByteArray& value) {
+    if (value.size() > 0) {
+        m_buffer.replace(pos, value.size(), value);
+    }
 }
 
 };  // namespace asdc::net

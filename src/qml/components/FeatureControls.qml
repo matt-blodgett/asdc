@@ -129,7 +129,7 @@ Item {
             Layout.column: 0
             text: "Lights - " + (core.messageLive.lights ? "ON" : "OFF")
             onReleased: {
-                console.log(`lights -> ${core.messageLive.lights}`)
+                core.commandSetLights(!core.messageLive.lights)
             }
         }
         Button {
@@ -138,6 +138,9 @@ Item {
             text: "EZ"
             onReleased: {
                 console.log("EZ clicked")
+                // core.testCommand()
+                // commands.testCommand()
+                // core.commands.testCommand()
             }
         }
     }

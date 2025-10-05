@@ -4,6 +4,9 @@
 #include <QByteArray>
 
 
+static const qint32 HEADER_SIZE = 20;
+
+
 namespace asdc::net {
 
 class Packet {

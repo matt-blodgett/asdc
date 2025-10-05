@@ -26,14 +26,15 @@ Packet::Packet(qint16 type, const QByteArray& payload) {
 }
 
 bool Packet::isChecksumValid() {
-    ByteBuffer buffer(m_payload.size() + 20);
+    ByteBuffer buffer(m_payload.size() + HEADER_SIZE);
     buffer.putInt(-1414717974);
     buffer.putInt(0);
     buffer.putInt(m_sequenceNumber);
     buffer.putInt(m_optional);
     buffer.putShort(m_type);
     buffer.putShort(m_size);
-    buffer.putBytes(m_payload);
+    buffer.putBytesAt(HEADER_SIZE, m_payload);
+
     QByteArray data = buffer.getBuffer();
 
     std::vector<unsigned char> ucharVector(data.size());
@@ -45,14 +46,15 @@ bool Packet::isChecksumValid() {
 }
 
 QByteArray Packet::serialize() {
-    ByteBuffer buffer(m_size + 20);
+    ByteBuffer buffer(m_size + HEADER_SIZE);
     buffer.putInt(-1414718150);
     buffer.putInt(0);
     buffer.putInt(m_sequenceNumber);
     buffer.putInt(m_optional);
     buffer.putShort(m_type);
     buffer.putShort(m_size);
-    buffer.putBytes(m_payload);
+    buffer.putBytesAt(HEADER_SIZE, m_payload);
+
     QByteArray data = buffer.getBuffer();
 
     std::vector<unsigned char> ucharVector(data.size());
