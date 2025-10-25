@@ -31,6 +31,7 @@ qt_add_qml_module(asdc
         qml/pages/MessageViewerPage.qml
         qml/pages/SettingsPage.qml
         qml/pages/SqlBrowserPage.qml
+        qml/pages/StartupPage.qml
 
         qml/Main.qml
 )

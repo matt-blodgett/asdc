@@ -46,7 +46,7 @@ Item {
             Layout.horizontalStretchFactor: 0
             Layout.verticalStretchFactor: 1
 
-            implicitWidth: hostIpAddressInput.implicitWidth + connectButton.implicitWidth + connectionStatusLabel.implicitWidth + 100;
+            implicitWidth: hostIpAddressTextField.implicitWidth + connectButton.implicitWidth + connectionStatusLabel.implicitWidth + 100;
 
             color: "#AA0000"
 
@@ -57,7 +57,7 @@ Item {
                     spacing: 10
 
                     TextField {
-                        id: hostIpAddressInput
+                        id: hostIpAddressTextField
                         text: ""
                         // readOnly: true
                     }
@@ -72,14 +72,14 @@ Item {
                             return "Loading..."
                         }
                         enabled: {
-                            if (core.networkState === SocketState.UnconnectedState && hostIpAddressInput.text) {
+                            if (core.networkState === SocketState.UnconnectedState && hostIpAddressTextField.text) {
                                 return true
                             }
                             return core.networkState === SocketState.ConnectedState
                         }
                         onReleased: {
                             if (core.networkState === SocketState.UnconnectedState) {
-                                const host = hostIpAddressInput.text
+                                const host = hostIpAddressTextField.text
                                 core.networkConnectToDevice(host)
                             } else if (core.networkState === SocketState.ConnectedState) {
                                 core.networkDisconnectFromDevice()
@@ -148,7 +148,7 @@ Item {
     }
 
     Settings {
-        category: "client"
-        property alias hostIpAddress: hostIpAddressInput.text
+        category: "network"
+        property alias hostIpAddress: hostIpAddressTextField.text
     }
 }

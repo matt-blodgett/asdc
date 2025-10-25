@@ -137,7 +137,7 @@ static inline bool udpProbe(const QString &host,
     return false;
 }
 
-void DiscoveryClient::search(const QString &ipAddress,
+QStringList DiscoveryClient::search(const QString &ipAddress,
                              int netmaskCidr,
                              int timeoutMs,
                              int maxWorkers)
@@ -147,21 +147,21 @@ void DiscoveryClient::search(const QString &ipAddress,
     const quint16 QUERY_PORT    = 9131;
     const quint16 RESPONSE_PORT = 33327;
 
-    qDebug() << "discovery searching -"
-             << "ip:" << ipAddress
-             << ", netmask:" << netmaskCidr
-             << ", timeout:" << timeoutMs
-             << ", workers:" << maxWorkers;
-
     QString ipAddr(ipAddress);
     if (ipAddr == QString()) {
         ipAddr = localIPv4ViaDefaultRoute();
         qDebug() << "using local ipv4 default route:" << ipAddr;
     }
 
+    qDebug() << "discovery searching -"
+             << "ip:" << ipAddr
+             << "- netmask:" << netmaskCidr
+             << "- timeoutMs:" << timeoutMs
+             << "- maxWorkers:" << maxWorkers;
+
     QStringList hosts = enumerateHosts(ipAddr, netmaskCidr);
     if (hosts.isEmpty())
-        return;
+        return {};
 
     qDebug() << "querying" << hosts.length() << "hosts";
 
@@ -176,9 +176,6 @@ void DiscoveryClient::search(const QString &ipAddress,
             if (udpProbe(h, QUERY, QUERY_PORT, RESPONSE, timeoutMs)) {
                 QMutexLocker lock(&foundMutex);
                 found.push_back(h);
-
-                qDebug() << h;
-                // emit hostFound(h);
             }
         });
         pool.start(task);
@@ -187,7 +184,7 @@ void DiscoveryClient::search(const QString &ipAddress,
     pool.waitForDone();
 
     // std::sort(found.begin(), found.end());
-    // return found;
+    return found;
 }
 
 
@@ -195,14 +192,19 @@ DiscoveryClientWorker::DiscoveryClientWorker(QObject *parent)
     : QObject{parent}
 {
     m_discoveryClient = new DiscoveryClient(this);
-
-    connect(m_discoveryClient, &DiscoveryClient::hostFound, this, &DiscoveryClientWorker::hostFound);
 }
 
 void DiscoveryClientWorker::search()
 {
     emit startedSearch();
-    m_discoveryClient->search();
+
+    m_hostsFound.clear();
+    m_hostsFound = m_discoveryClient->search();
+
+    foreach (const QString &host, m_hostsFound) {
+        emit hostFound(host);
+    }
+
     emit finishedSearch();
 }
 

@@ -48,6 +48,7 @@ Item {
 
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+
                     clip: true
 
                     Flickable {
@@ -151,77 +152,6 @@ Item {
                             anchors.top: messageTableHeader.bottom
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-
-                            clip: true
-
-                            rowSpacing: 0
-                            columnSpacing: 0
-
-                            resizableColumns: true
-
-                            editTriggers: TableView.NoEditTriggers
-                            boundsBehavior: Flickable.StopAtBounds
-
-                            columnWidthProvider: function(column) {
-                                // console.log(`column=${column},isColumnLoaded=${isColumnLoaded(column)}`)
-                                if (!isColumnLoaded(column)) {
-                                    return -1
-                                }
-
-                                const lastColumnIndex = columns - 1
-                                if (column === lastColumnIndex) {
-                                    const tableWidth = messageTableView.width
-
-                                    let totalColumnWidths = 0
-                                    for (let i = 0; i < columns; i++) {
-                                        totalColumnWidths += columnWidth(i)
-                                    }
-
-                                    const widthDifference = tableWidth - totalColumnWidths
-
-                                    const lastColumnWidth = columnWidth(lastColumnIndex)
-                                    const lastColumnImplicitWidth = implicitColumnWidth(lastColumnIndex)
-
-                                    const lastColumnWidthAdjusted = Math.max(lastColumnWidth + widthDifference, lastColumnImplicitWidth)
-
-                                    // console.log(`lastColumnIndex          =${lastColumnIndex}`)
-                                    // console.log(`tableWidth               =${tableWidth}`)
-                                    // console.log(`totalColumnWidths        =${totalColumnWidths}`)
-                                    // console.log(`widthDifference          =${widthDifference}`)
-                                    // console.log(`lastColumnWidth          =${lastColumnWidth}`)
-                                    // console.log(`lastColumnImplicitWidth  =${lastColumnImplicitWidth}`)
-                                    // console.log(`lastColumnWidthAdjusted  =${lastColumnWidthAdjusted}`)
-                                    // console.log('-----------------------------------')
-
-                                    return lastColumnWidthAdjusted
-                                }
-
-                                let w = explicitColumnWidth(column)
-                                if (w >= 0) {
-                                    return Math.max(100, w)
-                                }
-                                return implicitColumnWidth(column)
-                            }
-
-                            // Timer {
-                            //     running: true
-                            //     interval: 2000
-                            //     onTriggered: {
-                            //         messageTableView.forceLayout();
-                            //     }
-                            // }
-
-                            delegate: TableViewDelegate {
-                                leftPadding: 5
-                                rightPadding: 5
-                                topPadding: 5
-                                bottomPadding: 5
-                            }
-                            model: TableModel {
-                                TableModelColumn { display: "field" }
-                                TableModelColumn { display: "value" }
-                                rows: []
-                            }
 
                             readonly property list<string> fieldsClock : [
                                 "year",
@@ -463,11 +393,73 @@ Item {
 
                                 messageTableView.positionViewAtCell(Qt.point(0, 0), TableView.AlignLeft | TableView.AlignTop)
                             }
-
                             function onMessageChanged(messageName) {
                                 if (messageTableView.currentMessageName === messageName) {
                                     messageTableView.populateData(messageName)
                                 }
+                            }
+
+                            clip: true
+
+                            rowSpacing: 0
+                            columnSpacing: 0
+
+                            resizableColumns: true
+
+                            editTriggers: TableView.NoEditTriggers
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            columnWidthProvider: function(column) {
+                                // console.log(`column=${column},isColumnLoaded=${isColumnLoaded(column)}`)
+                                if (!isColumnLoaded(column)) {
+                                    return -1
+                                }
+
+                                const lastColumnIndex = columns - 1
+                                if (column === lastColumnIndex) {
+                                    const tableWidth = messageTableView.width
+
+                                    let totalColumnWidths = 0
+                                    for (let i = 0; i < columns; i++) {
+                                        totalColumnWidths += columnWidth(i)
+                                    }
+
+                                    const widthDifference = tableWidth - totalColumnWidths
+
+                                    const lastColumnWidth = columnWidth(lastColumnIndex)
+                                    const lastColumnImplicitWidth = implicitColumnWidth(lastColumnIndex)
+
+                                    const lastColumnWidthAdjusted = Math.max(lastColumnWidth + widthDifference, lastColumnImplicitWidth)
+
+                                    // console.log(`lastColumnIndex          =${lastColumnIndex}`)
+                                    // console.log(`tableWidth               =${tableWidth}`)
+                                    // console.log(`totalColumnWidths        =${totalColumnWidths}`)
+                                    // console.log(`widthDifference          =${widthDifference}`)
+                                    // console.log(`lastColumnWidth          =${lastColumnWidth}`)
+                                    // console.log(`lastColumnImplicitWidth  =${lastColumnImplicitWidth}`)
+                                    // console.log(`lastColumnWidthAdjusted  =${lastColumnWidthAdjusted}`)
+                                    // console.log('-----------------------------------')
+
+                                    return lastColumnWidthAdjusted
+                                }
+
+                                let w = explicitColumnWidth(column)
+                                if (w >= 0) {
+                                    return Math.max(100, w)
+                                }
+                                return implicitColumnWidth(column)
+                            }
+
+                            model: TableModel {
+                                TableModelColumn { display: "field" }
+                                TableModelColumn { display: "value" }
+                                rows: []
+                            }
+                            delegate: TableViewDelegate {
+                                leftPadding: 5
+                                rightPadding: 5
+                                topPadding: 5
+                                bottomPadding: 5
                             }
 
                             Component.onCompleted: {
@@ -510,7 +502,6 @@ Item {
                                     messageTableView.onMessageChanged("Settings")
                                 }
                             }
-
                         }
                     }
 

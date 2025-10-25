@@ -15,14 +15,10 @@ public:
     explicit DiscoveryClient(QObject *parent = nullptr);
 
 public:
-    void search(const QString &ipAddress = QString(),
-                int netmaskCidr = 24,
-                int timeoutMs = 1000,
-                int maxWorkers = 50
-    );
-
-signals:
-    void hostFound(const QString &host);
+    QStringList search(const QString &ipAddress = QString(),
+                       int netmaskCidr = 24,
+                       int timeoutMs = 1000,
+                       int maxWorkers = 50);
 };
 
 
@@ -38,6 +34,7 @@ public slots:
 
 private:
     DiscoveryClient *m_discoveryClient;
+    QStringList m_hostsFound;
 
 signals:
     void startedSearch();

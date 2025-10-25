@@ -20,14 +20,50 @@ namespace asdc::core {
 CoreInterface::CoreInterface(QObject *parent)
     : QObject{parent}
 {
-    // m_commands = new CommandsInterface(this);
-
     m_databaseClient = new asdc::db::DatabaseClient(this);
-    m_databaseClient->openDatabase(true);
-
-
+    m_discoveryClientWorkerThread = new QThread(this);
     m_networkClientWorkerThread = new QThread(this);
 
+    initDatabase();
+    initDiscovery();
+    initNetwork();
+
+    m_discoveryClientWorkerThread->start();
+    m_networkClientWorkerThread->start();
+
+
+    // test();
+}
+CoreInterface::~CoreInterface() {
+    qDebug() << "quitting worker threads";
+
+    m_networkClientWorkerThread->quit();
+    m_networkClientWorkerThread->wait();
+
+    m_discoveryClientWorkerThread->quit();
+    m_discoveryClientWorkerThread->wait();
+}
+
+void CoreInterface::initDatabase() {
+    m_databaseClient->openDatabase(true);
+}
+void CoreInterface::initDiscovery()
+{
+    asdc::net::DiscoveryClientWorker *worker = new asdc::net::DiscoveryClientWorker();
+    worker->moveToThread(m_discoveryClientWorkerThread);
+
+    connect(m_discoveryClientWorkerThread, &QThread::finished, worker, &QObject::deleteLater);
+    connect(m_discoveryClientWorkerThread, &QThread::finished, m_discoveryClientWorkerThread, &QObject::deleteLater);
+
+    connect(worker, &asdc::net::DiscoveryClientWorker::startedSearch, this, &CoreInterface::onDiscoveryClientWorkerStartedSearch);
+    connect(worker, &asdc::net::DiscoveryClientWorker::finishedSearch, this, &CoreInterface::onDiscoveryClientWorkerFinishedSearch);
+    connect(worker, &asdc::net::DiscoveryClientWorker::hostFound, this, &CoreInterface::onDiscoveryClientWorkerHostFound);
+    connect(worker, &asdc::net::DiscoveryClientWorker::hostFound, this, &CoreInterface::discoveryHostFound);
+
+    connect(this, &CoreInterface::discoveryClientWorkerSearch, worker, &asdc::net::DiscoveryClientWorker::search);
+}
+void CoreInterface::initNetwork()
+{
     asdc::net::NetworkClientWorker *worker = new asdc::net::NetworkClientWorker();
     worker->moveToThread(m_networkClientWorkerThread);
 
@@ -69,41 +105,10 @@ CoreInterface::CoreInterface(QObject *parent)
     connect(this, &CoreInterface::networkClientWorkerDisconnectFromDevice, worker, &asdc::net::NetworkClientWorker::disconnectFromDevice);
     connect(this, &CoreInterface::networkClientWorkerQueueMessage, worker, &asdc::net::NetworkClientWorker::queueMessage);
     connect(this, &CoreInterface::networkClientWorkerQueueCommand, worker, &asdc::net::NetworkClientWorker::queueCommand);
-
-    m_networkClientWorkerThread->start();
-
-
-    // test();
-}
-CoreInterface::~CoreInterface() {
-    qDebug() << "quitting worker thread";
-    m_networkClientWorkerThread->quit();
-    m_networkClientWorkerThread->wait();
-    qDebug() << "quit worker thread";
 }
 
-
-void CoreInterface::testDiscovery() {
-    m_discoveryClientWorkerThread = new QThread(this);
-
-    asdc::net::DiscoveryClientWorker *worker = new asdc::net::DiscoveryClientWorker();
-    worker->moveToThread(m_discoveryClientWorkerThread);
-
-    connect(m_discoveryClientWorkerThread, &QThread::finished, worker, &QObject::deleteLater);
-    connect(m_discoveryClientWorkerThread, &QThread::finished, m_discoveryClientWorkerThread, &QObject::deleteLater);
-
-    connect(worker, &asdc::net::DiscoveryClientWorker::startedSearch, this, [this]() { setDiscoveryWorking(true); });
-    connect(worker, &asdc::net::DiscoveryClientWorker::finishedSearch, this, [this]() { setDiscoveryWorking(false); });
-    connect(worker, &asdc::net::DiscoveryClientWorker::hostFound, this, &CoreInterface::onDiscoveryClientWorkerHostFound);
-
-    connect(this, &CoreInterface::discoveryClientWorkerSearch, worker, &asdc::net::DiscoveryClientWorker::search);
-
-    m_discoveryClientWorkerThread->start();
-
-    emit discoveryClientWorkerSearch();
-}
-void CoreInterface::test() {
-
+void CoreInterface::test()
+{
     m_databaseClient->createConnectionSession("192.168.0.1");
 
     // --------------------------------------------------
@@ -123,7 +128,7 @@ void CoreInterface::test() {
     m_messageLive.setTemperatureSetpointFahrenheit(103);
     m_messageLive.setPump1(asdc::proto::Live::PumpStatus(1));
     setMessageLive(m_messageLive, QDateTime::currentDateTime());
-
+    m_databaseClient->logMessageLive(m_messageLive, m_messageLiveReceivedAt);
 
     // --------------------------------------------------
     // OnzenLive
@@ -133,6 +138,7 @@ void CoreInterface::test() {
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_LOW);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_LOW);
     setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
+    m_databaseClient->logMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
 
     m_messageOnzenLive.setGuid("B0-test");
     m_messageOnzenLive.setOrp(500);
@@ -140,6 +146,7 @@ void CoreInterface::test() {
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_CAUTION_LOW);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_CAUTION_LOW);
     setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
+    m_databaseClient->logMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
 
     m_messageOnzenLive.setGuid("B1-test");
     m_messageOnzenLive.setOrp(620);
@@ -147,6 +154,7 @@ void CoreInterface::test() {
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_OK);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_OK);
     setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
+    m_databaseClient->logMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
 
     m_messageOnzenLive.setGuid("C0-test");
     m_messageOnzenLive.setOrp(710);
@@ -154,6 +162,7 @@ void CoreInterface::test() {
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_CAUTION_HIGH);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_CAUTION_HIGH);
     setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
+    m_databaseClient->logMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
 
     m_messageOnzenLive.setGuid("D0-test");
     m_messageOnzenLive.setOrp(850);
@@ -161,7 +170,7 @@ void CoreInterface::test() {
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_HIGH);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_HIGH);
     setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
-
+    m_databaseClient->logMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
 
     m_messageOnzenLive.setGuid("test");
     m_messageOnzenLive.setOrp(615);
@@ -169,13 +178,21 @@ void CoreInterface::test() {
     m_messageOnzenLive.setOrpColor(asdc::proto::OnzenLive::Color::COLOR_OK);
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_OK);
     setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
-
+    m_databaseClient->logMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
 
     m_messageSettings.setMinTemperature(52);
     m_messageSettings.setMaxTemperature(104);
     setMessageSettings(m_messageSettings, QDateTime::currentDateTime());
+    m_databaseClient->logMessageSettings(m_messageSettings, QDateTime::currentDateTime());
 }
 
+
+void CoreInterface::discoverySearch()
+{
+    if (!m_discoveryWorking) {
+        emit discoveryClientWorkerSearch();
+    }
+}
 
 void CoreInterface::networkConnectToDevice(const QString &host) {
     emit networkClientWorkerConnectToDevice(host);
@@ -184,18 +201,16 @@ void CoreInterface::networkDisconnectFromDevice() {
     emit networkClientWorkerDisconnectFromDevice();
 }
 
-bool CoreInterface::discoveryWorking() const {
-    return m_discoveryWorking;
+void CoreInterface::onDiscoveryClientWorkerStartedSearch() {
+    setDiscoveryWorking(true);
+    emit discoveryStartedSearch();
 }
-
-QString CoreInterface::networkHost() const {
-    return m_networkHost;
+void CoreInterface::onDiscoveryClientWorkerFinishedSearch() {
+    setDiscoveryWorking(false);
+    emit discoveryFinishedSearch();
 }
-QAbstractSocket::SocketState CoreInterface::networkState() const {
-    return m_networkState;
-}
-QAbstractSocket::SocketError CoreInterface::networkError() const {
-    return m_networkError;
+void CoreInterface::onDiscoveryClientWorkerHostFound(const QString &host) {
+    qDebug() << "found host" << host;
 }
 
 void CoreInterface::onNetworkClientWorkerHostChanged(const QString &host) {
@@ -223,18 +238,18 @@ void CoreInterface::onNetworkClientWorkerErrorOccurred(QAbstractSocket::SocketEr
     emit networkErrorOccurred();
 }
 
-void CoreInterface::setDiscoveryWorking(bool working) {
-    if (m_discoveryWorking && !working) {
-        m_discoveryClientWorkerThread->quit();
-        m_discoveryClientWorkerThread->wait();
-    }
-
-    m_discoveryWorking = working;
-    qDebug() << m_discoveryWorking;
-    emit discoveryWorkingChanged();
+bool CoreInterface::discoveryWorking() const {
+    return m_discoveryWorking;
 }
-void CoreInterface::onDiscoveryClientWorkerHostFound(const QString &host) {
-    qDebug() << "found host" << host;
+
+QString CoreInterface::networkHost() const {
+    return m_networkHost;
+}
+QAbstractSocket::SocketState CoreInterface::networkState() const {
+    return m_networkState;
+}
+QAbstractSocket::SocketError CoreInterface::networkError() const {
+    return m_networkError;
 }
 
 asdc::proto::Clock CoreInterface::messageClock() const {
@@ -303,6 +318,16 @@ QDateTime CoreInterface::messagePeripheralReceivedAt() const {
 }
 QDateTime CoreInterface::messageSettingsReceivedAt() const {
     return m_messageSettingsReceivedAt;
+}
+
+void CoreInterface::setDiscoveryWorking(bool working) {
+    if (m_discoveryWorking == working) {
+        return;
+    }
+
+    m_discoveryWorking = working;
+    qDebug() << m_discoveryWorking;
+    emit discoveryWorkingChanged();
 }
 
 void CoreInterface::setMessageClock(const asdc::proto::Clock &message, const QDateTime &messageReceivedAt) {

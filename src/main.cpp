@@ -6,12 +6,11 @@
 
 #include "core.h"
 
+#include "db/sqlquerymodel.h"
+
 
 //#define MESSAGE_PATTERN "[%{time yyyyMMdd h:mm:ss.zzz}] %{if-debug}DBUG:%{endif}%{if-info}INFO:%{endif}%{if-warning}WARN:%{endif}%{if-critical}CRIT:%{endif}%{if-fatal}FATAL:%{endif} <%{function}> %{message}"
 #define MESSAGE_PATTERN "%{if-debug}DBUG:%{endif}%{if-info}INFO:%{endif}%{if-warning}WARN:%{endif}%{if-critical}CRIT:%{endif}%{if-fatal}FATAL:%{endif} <%{function}> %{message}"
-
-
-#include "db/sqlquerymodel.h"
 
 
 int main(int argc, char *argv[])
@@ -33,26 +32,11 @@ int main(int argc, char *argv[])
     qmlRegisterType<SqlTableModel>("asdc.types.models", 1, 0, "SqlTableModel");
     qmlRegisterType<SqlQueryModel>("asdc.types.models", 1, 0, "SqlQueryModel");
 
-    QObject::connect(
-        &engine,
-        &QQmlApplicationEngine::objectCreationFailed,
-        &app,
-        []() { QCoreApplication::exit(-1); },
-        Qt::QueuedConnection
-    );
-    QObject::connect(
-        &engine,
-        &QQmlApplicationEngine::quit,
-        &app,
-        &QGuiApplication::quit,
-        Qt::QueuedConnection
-    );
+    QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, []() { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
+    QObject::connect(&engine, &QQmlApplicationEngine::quit, &app, &QGuiApplication::quit, Qt::QueuedConnection);
 
     asdc::core::CoreInterface *core = new asdc::core::CoreInterface(&app);
     engine.rootContext()->setContextProperty("core", core);
-
-    // asdc::core::CommandsInterface *commands = new asdc::core::CommandsInterface(&app);
-    // engine.rootContext()->setContextProperty("commands", commands);
 
     engine.loadFromModule("asdc.qml", "Main");
 

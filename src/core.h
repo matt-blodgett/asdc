@@ -73,24 +73,32 @@ public:
     explicit CoreInterface(QObject *parent = nullptr);
     ~CoreInterface();
 
-    Q_INVOKABLE void testDiscovery();
+private:
+    void initDatabase();
+    void initDiscovery();
+    void initNetwork();
+
 
 private:
     void test();
 
+
 public:
+    Q_INVOKABLE void discoverySearch();
+
     Q_INVOKABLE void networkConnectToDevice(const QString &host);
     Q_INVOKABLE void networkDisconnectFromDevice();
 
 private:
+    void onDiscoveryClientWorkerStartedSearch();
+    void onDiscoveryClientWorkerFinishedSearch();
+    void onDiscoveryClientWorkerHostFound(const QString &host);
+
     void onNetworkClientWorkerHostChanged(const QString &host);
     void onNetworkClientWorkerConnected();
     void onNetworkClientWorkerDisconnected();
     void onNetworkClientWorkerStateChanged(QAbstractSocket::SocketState socketState);
     void onNetworkClientWorkerErrorOccurred(QAbstractSocket::SocketError socketError);
-
-    void setDiscoveryWorking(bool working);
-    void onDiscoveryClientWorkerHostFound(const QString &host);
 
 public:
     bool discoveryWorking() const;
@@ -124,6 +132,8 @@ public:
     QDateTime messageSettingsReceivedAt() const;
 
 private:
+    void setDiscoveryWorking(bool working);
+
     void setMessageClock(const asdc::proto::Clock &message, const QDateTime &messageReceivedAt);
     void setMessageConfiguration(const asdc::proto::Configuration &message, const QDateTime &messageReceivedAt);
     void setMessageError(const asdc::proto::Error &message, const QDateTime &messageReceivedAt);
@@ -180,7 +190,6 @@ public:
 
 private:
     asdc::db::DatabaseClient *m_databaseClient = nullptr;
-
     QThread *m_networkClientWorkerThread = nullptr;
     QThread *m_discoveryClientWorkerThread = nullptr;
 
@@ -213,16 +222,20 @@ private:
     QDateTime m_messagePeakReceivedAt;
     QDateTime m_messagePeripheralReceivedAt;
     QDateTime m_messageSettingsReceivedAt;
-\
+
 signals:
+    void discoveryClientWorkerSearch();
+
     void networkClientWorkerConnectToDevice(const QString &host);
     void networkClientWorkerDisconnectFromDevice();
     void networkClientWorkerQueueMessage(const asdc::net::MessageType &messageType);
     void networkClientWorkerQueueCommand(const QString &name, const QVariant &value);
 
-    void discoveryClientWorkerSearch();
-
+signals:
+    void discoveryStartedSearch();
+    void discoveryFinishedSearch();
     void discoveryWorkingChanged();
+    void discoveryHostFound(const QString &host);
 
     void networkHostChanged();
     void networkConnected();
@@ -241,7 +254,6 @@ signals:
     void messagePeakChanged();
     void messagePeripheralChanged();
     void messageSettingsChanged();
-
 };
 
 };  // namespace asdc::core

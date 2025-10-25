@@ -9,8 +9,8 @@ ApplicationWindow {
 
     title: "asdc"
     visible: true
-    minimumWidth: 300
-    minimumHeight: 250
+    minimumWidth: 320
+    minimumHeight: 300
 
     menuBar: MenuBar {
         Menu {
@@ -27,8 +27,29 @@ ApplicationWindow {
         }
     }
 
-    MainPage {
+
+    MouseArea {
         anchors.fill: parent
+
+        onClicked: {
+            console.log("base mouse area pressed")
+            focus = true
+        }
+    }
+
+    StartupPage {
+        id: startupPage
+        anchors.fill: parent
+        visible: true
+        onStartupFinished: function(success) {
+            startupPage.visible = !success
+            mainPage.visible = success
+        }
+    }
+    MainPage {
+        id: mainPage
+        anchors.fill: parent
+        visible: false
     }
 
     Settings {

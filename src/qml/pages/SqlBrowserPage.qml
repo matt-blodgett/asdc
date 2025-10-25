@@ -19,7 +19,6 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-
         spacing: 0
 
         RowLayout {
@@ -276,54 +275,56 @@ Item {
                 color: "#333333"
             }
 
-            TableView {
-                id: sqlTableView
-
+            ScrollView {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: sqlTableHeaderViewBorderBottom.bottom
                 anchors.bottom: parent.bottom
 
-                clip: true
+                TableView {
+                    id: sqlTableView
 
-                rowSpacing: 0
-                columnSpacing: 0
+                    clip: true
 
-                resizableColumns: true
-                boundsBehavior: Flickable.StopAtBounds
+                    rowSpacing: 0
+                    columnSpacing: 0
 
-                model: sqlModel
+                    resizableColumns: true
+                    boundsBehavior: Flickable.StopAtBounds
 
-                delegate: TableViewDelegate {
-                    leftPadding: 5
-                    rightPadding: 5
-                    topPadding: 5
-                    bottomPadding: 5
-                }
+                    model: sqlModel
 
-                function minimumColumnWidth(column) {
-                    const colWidthImplicit = implicitColumnWidth(column)
-                    const colHeaderText = sqlModel.headerData(column, Qt.Horizontal)
-                    const colHeaderWidthImplicit = (colHeaderText.length * 7) + 10
-                    const colWidthMinimum = Math.max(colWidthImplicit, colHeaderWidthImplicit, 40)
-                    return colWidthMinimum
-                }
-
-                function setColumnWidthToFit(column) {
-                    setColumnWidth(column, minimumColumnWidth(column))
-                }
-                function setAllColumnWidthsToFit() {
-                    for (let i = 0; i < sqlModel.columnCount(); i++) {
-                        setColumnWidthToFit(i)
+                    delegate: TableViewDelegate {
+                        leftPadding: 5
+                        rightPadding: 5
+                        topPadding: 5
+                        bottomPadding: 5
                     }
-                }
 
-                columnWidthProvider: function(column) {
-                    const colWidthExplicit = explicitColumnWidth(column)
-                    if (colWidthExplicit >= 0) {
-                        return colWidthExplicit
+                    function minimumColumnWidth(column) {
+                        const colWidthImplicit = implicitColumnWidth(column)
+                        const colHeaderText = sqlModel.headerData(column, Qt.Horizontal)
+                        const colHeaderWidthImplicit = (colHeaderText.length * 7) + 10
+                        const colWidthMinimum = Math.max(colWidthImplicit, colHeaderWidthImplicit, 40)
+                        return colWidthMinimum
                     }
-                    return minimumColumnWidth(column)
+
+                    function setColumnWidthToFit(column) {
+                        setColumnWidth(column, minimumColumnWidth(column))
+                    }
+                    function setAllColumnWidthsToFit() {
+                        for (let i = 0; i < sqlModel.columnCount(); i++) {
+                            setColumnWidthToFit(i)
+                        }
+                    }
+
+                    columnWidthProvider: function(column) {
+                        const colWidthExplicit = explicitColumnWidth(column)
+                        if (colWidthExplicit >= 0) {
+                            return colWidthExplicit
+                        }
+                        return minimumColumnWidth(column)
+                    }
                 }
             }
         }
