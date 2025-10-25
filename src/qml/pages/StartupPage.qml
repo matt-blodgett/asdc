@@ -6,12 +6,52 @@ import Qt.labs.qmlmodels
 
 import asdc.types.sockets
 
+import "../components"
+
 Item {
     id: root
 
-    signal startupFinished(bool success)
-
     property list<string> foundHosts : []
+    readonly property list<string> startupMessageTypes : [
+        "Configuration",
+        "Settings",
+        "Information",
+        "Peripheral",
+        "Error",
+        "OnzenSettings",
+        "OnzenLive",
+        "Live"
+    ]
+
+    signal startupFinished()
+
+    function startNetworkConnectToDevice() {
+        const host = hostIpAddressTextField.text
+
+        loadingDialog.processStatus = "loading"
+        loadingDialog.displayMessage = `Connecting to host "${host}"...`
+        loadingDialog.visible = true
+
+        core.networkConnectToDevice(host)
+    }
+    function startDiscoverySearch() {
+        loadingDialog.processStatus = "loading"
+        loadingDialog.displayMessage = "Scanning network..."
+        loadingDialog.visible = true
+
+        foundHosts = []
+        core.discoverySearch()
+    }
+    function finishIfAllStartupMessagesReceived() {
+        for (let messageType of startupMessageTypes) {
+            if (isNaN(core[`message${messageType}ReceivedAt`].getTime())) {
+                console.log(`missing ${messageType}`)
+                return
+            }
+        }
+        loadingDialog.visible = false
+        startupFinished()
+    }
 
     RowLayout {
         anchors.fill: parent
@@ -62,15 +102,12 @@ Item {
                     font.pixelSize: 18
                 }
                 Button {
-                    id: autoConnectButton
+                    id: manualConnectButton
                     Layout.fillWidth: true
                     Layout.preferredHeight: 36
                     text: "Connect"
-                    enabled: !core.discoveryWorking && hostIpAddressTextField.text !== ""
-                    onReleased: {
-                        console.log(foundHosts)
-                        // startupFinished(true)
-                    }
+                    enabled: !core.discoveryWorking && hostIpAddressTextField.text !== "" && core.networkState === SocketState.UnconnectedState
+                    onReleased: startNetworkConnectToDevice()
                 }
                 Button {
                     id: scanConnectButton
@@ -78,10 +115,7 @@ Item {
                     Layout.preferredHeight: 36
                     text: "Scan Network"
                     enabled: !core.discoveryWorking
-                    onReleased: {
-                        foundHosts = []
-                        core.discoverySearch()
-                    }
+                    onReleased: startDiscoverySearch()
                 }
                 Rectangle {
                     Layout.fillWidth: true
@@ -105,8 +139,27 @@ Item {
         }
     }
 
+    LoadingDialog {
+        id: loadingDialog
+        anchors.centerIn: parent
+
+        width: 275
+        height: 100
+
+        visible: false
+
+        onCancelPressed: {
+            loadingDialog.visible = false
+        }
+        onContinuePressed: {
+            loadingDialog.visible = false
+        }
+    }
+
     Connections {
         target: core
+        enabled: root.visible
+
         function onDiscoveryHostFound(host) {
             foundHosts.push(host)
         }
@@ -114,15 +167,48 @@ Item {
             console.log(foundHosts)
             if (foundHosts.length === 0) {
                 console.log("No hosts found!")
+                loadingDialog.processStatus = "error"
+                loadingDialog.displayMessage = "Could not find a connected spa!"
             } else {
-                if (foundHosts.length === 1) {
-                    console.log("Found one host, using to connect")
-                } else if (foundHosts.length > 1) {
-                    console.log("Found multiple hosts, using the first")
+                if (foundHosts.length > 1) {
+                    console.log("Found multiple hosts - using the first")
                 }
-
                 hostIpAddressTextField.text = foundHosts[0]
+                startNetworkConnectToDevice()
             }
+        }
+
+        function onNetworkConnected() {
+            loadingDialog.processStatus = "loading"
+            loadingDialog.displayMessage = "Retrieving spa configuration..."
+
+            for (let messageType of startupMessageTypes) {
+                core[`refreshMessage${messageType}`]()
+            }
+        }
+        function onNetworkErrorOccurred() {
+            console.log(core.networkError)
+            loadingDialog.processStatus = "error"
+            loadingDialog.displayMessage = "Connection failed!"
+        }
+
+        function onMessageConfigurationChanged() {
+            finishIfAllStartupMessagesReceived()
+        }
+        function onMessageSettingsChanged() {
+            finishIfAllStartupMessagesReceived()
+        }
+        function onMessageInformationChanged() {
+            finishIfAllStartupMessagesReceived()
+        }
+        function onMessageOnzenSettingsChanged() {
+            finishIfAllStartupMessagesReceived()
+        }
+        function onMessageOnzenLiveChanged() {
+            finishIfAllStartupMessagesReceived()
+        }
+        function onMessageLiveChanged() {
+            finishIfAllStartupMessagesReceived()
         }
     }
 

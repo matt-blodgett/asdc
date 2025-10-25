@@ -9,7 +9,7 @@ ApplicationWindow {
 
     title: "asdc"
     visible: true
-    minimumWidth: 320
+    minimumWidth: 330
     minimumHeight: 300
 
     menuBar: MenuBar {
@@ -41,9 +41,9 @@ ApplicationWindow {
         id: startupPage
         anchors.fill: parent
         visible: true
-        onStartupFinished: function(success) {
-            startupPage.visible = !success
-            mainPage.visible = success
+        onStartupFinished: {
+            startupPage.visible = false
+            mainPage.visible = true
         }
     }
     MainPage {

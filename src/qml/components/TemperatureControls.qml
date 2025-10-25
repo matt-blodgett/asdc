@@ -35,11 +35,7 @@ Item {
             Button {
                 id: downButton
                 text: "-"
-                onReleased: {
-                    if (core.messageLive.temperatureSetpointFahrenheit > core.messageSettings.minTemperature) {
-                        // core.messageLive.temperatureSetpointFahrenheit--
-                    }
-                }
+                onReleased: temperatureSetpointSlider.decrease()
             }
 
             Slider {
@@ -50,20 +46,23 @@ Item {
                 stepSize: 1
                 width: 200
                 onValueChanged: {
-                    // if (core.messageLive.temperatureSetpointFahrenheit !== value) {
-                    //     core.messageLive.temperatureSetpointFahrenheit = value
-                    // }
+                    // console.log(`pressed=${pressed}, value=${value}`)
+                    if (!pressed && value !== core.messageLive.temperatureSetpointFahrenheit) {
+                        core.commandSetTemperatureSetpointFahrenheit(value)
+                    }
+                }
+                onPressedChanged: {
+                    // console.log(`pressed=${pressed}, value=${value}`)
+                    if (!pressed && value !== core.messageLive.temperatureSetpointFahrenheit) {
+                        core.commandSetTemperatureSetpointFahrenheit(value)
+                    }
                 }
             }
 
             Button {
                 id: upButton
                 text: "+"
-                onReleased: {
-                    if (core.messageLive.temperatureSetpointFahrenheit < core.messageSettings.maxTemperature) {
-                        // core.messageLive.temperatureSetpointFahrenheit++
-                    }
-                }
+                onReleased: temperatureSetpointSlider.increase()
             }
         }
     }

@@ -188,6 +188,10 @@ public:
     Q_INVOKABLE void commandSetSds(bool value);
     Q_INVOKABLE void commandSetYess(bool value);
 
+// public:
+//     Q_INVOKABLE void requestMessage(const QString &name);
+//     Q_INVOKABLE void requestCommand(const QString &name, QVariant &value);
+
 private:
     asdc::db::DatabaseClient *m_databaseClient = nullptr;
     QThread *m_networkClientWorkerThread = nullptr;

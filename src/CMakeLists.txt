@@ -22,6 +22,7 @@ qt_add_qml_module(asdc
     QML_FILES
         qml/components/DeviceStatusDisplay.qml
         qml/components/FeatureControls.qml
+        qml/components/LoadingDialog.qml
         qml/components/MessageViewer.qml
         qml/components/SensorReadingsDisplay.qml
         qml/components/TemperatureControls.qml

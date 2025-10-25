@@ -324,7 +324,6 @@ void CoreInterface::setDiscoveryWorking(bool working) {
     if (m_discoveryWorking == working) {
         return;
     }
-
     m_discoveryWorking = working;
     qDebug() << m_discoveryWorking;
     emit discoveryWorkingChanged();
@@ -450,13 +449,18 @@ void CoreInterface::sendCommand(const QString &name, const QVariant &value) {
     propertyName.remove(0, 3);
     propertyName[0] = propertyName[0].toLower();
 
-    QVariant previousValue = m_messageLive.property(propertyName);
+    QVariant currentValue = m_messageLive.property(propertyName);
 
-    if (!previousValue.isValid()) {
-        previousValue = "";
+    if (!currentValue.isValid()) {
+        currentValue = "";
     }
 
-    m_databaseClient->logCommand(name, previousValue, value, QDateTime::currentDateTime());
+    if (value == currentValue) {
+        qDebug() << "requested value == current value:" << value << "==" << currentValue;
+        return;
+    }
+
+    m_databaseClient->logCommand(name, currentValue, value, QDateTime::currentDateTime());
     emit networkClientWorkerQueueCommand(name, value);
 }
 
@@ -571,4 +575,11 @@ void CoreInterface::commandSetYess(bool value) {
     sendCommand(name, value);
 }
 
-};  // namespace asdc
+// void CoreInterface::requestMessage(const QString &name) {
+
+// }
+// void CoreInterface::requestCommand(const QString &name, QVariant &value) {
+
+// }
+
+};  // namespace asdc::core
