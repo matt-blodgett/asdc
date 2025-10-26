@@ -35,10 +35,6 @@ CoreInterface::CoreInterface(QObject *parent)
     m_networkClientWorkerThread->start();
 
     connect(m_autoRefreshTimer, &QTimer::timeout, this, &CoreInterface::autoRefreshCheck);
-    m_autoRefreshTimer->start(1000);
-
-
-    // test();
 }
 CoreInterface::~CoreInterface() {
     qDebug() << "quitting worker threads";
@@ -114,36 +110,28 @@ void CoreInterface::initNetwork()
 }
 
 void CoreInterface::autoRefreshCheck() {
-    // qDebug() << m_messageLiveReceivedAt.isValid();
-    // qDebug() << m_messageOnzenLiveReceivedAt.isValid();
-    // qDebug() << m_messageErrorReceivedAt.isValid();
+    if (m_networkState != QAbstractSocket::SocketState::ConnectedState) {
+        m_autoRefreshTimer->stop();
+        return;
+    }
 
-    // if (m_messageLiveReceivedAt.isValid()) {
-    //     qDebug() << "message live";
-    //     qDebug() << QDateTime::currentDateTime();
-    //     qDebug() << m_messageLiveReceivedAt;
+    const int maxMessageAgeSecs = 60;
+    const QDateTime maxMessageAgeDateTime = QDateTime::currentDateTime().addSecs(-maxMessageAgeSecs);
 
-    //     // QDateTime fiveMinutesAgo = QDateTime::currentDateTime().addSecs(-(5 * 60));
-    //     QDateTime fiveMinutesAgo = QDateTime::currentDateTime().addSecs(-2);
-    //     qDebug() << fiveMinutesAgo;
-
-    //     qDebug() << (m_messageLiveReceivedAt < fiveMinutesAgo);
-
-    // }
-
-    if (m_messageErrorReceivedAt.isValid()) {
-        qDebug() << "message error";
-        qDebug() << QDateTime::currentDateTime();
-        qDebug() << m_messageErrorReceivedAt;
-
-        // QDateTime fiveMinutesAgo = QDateTime::currentDateTime().addSecs(-(5 * 60));
-        QDateTime fiveMinutesAgo = QDateTime::currentDateTime().addSecs(-2);
-        qDebug() << fiveMinutesAgo;
-
-        qDebug() << (m_messageErrorReceivedAt < fiveMinutesAgo);
-
+    if (m_messageLiveReceivedAt.isValid() && m_messageLiveReceivedAt < maxMessageAgeDateTime) {
+        qDebug() << "refreshing stale message: type = LIVE, received =" << m_messageLiveReceivedAt << ", threshold =" << maxMessageAgeDateTime;
+        refreshMessageLive();
+    }
+    if (m_messageOnzenLiveReceivedAt.isValid() && m_messageOnzenLiveReceivedAt < maxMessageAgeDateTime) {
+        qDebug() << "refreshing stale message: type = ONZEN_LIVE, received =" << m_messageOnzenLiveReceivedAt << ", threshold =" << maxMessageAgeDateTime;
+        refreshMessageOnzenLive();
+    }
+    if (m_messageErrorReceivedAt.isValid() && m_messageErrorReceivedAt < maxMessageAgeDateTime) {
+        qDebug() << "refreshing stale message: type = ERROR, received =" << m_messageErrorReceivedAt << ", threshold =" << maxMessageAgeDateTime;
+        refreshMessageError();
     }
 }
+
 
 void CoreInterface::testMode()
 {
@@ -258,10 +246,12 @@ void CoreInterface::onNetworkClientWorkerHostChanged(const QString &host) {
     emit networkHostChanged();
 }
 void CoreInterface::onNetworkClientWorkerConnected() {
+    m_autoRefreshTimer->start(5000);
     qDebug() << "worker client connected";
     emit networkConnected();
 }
 void CoreInterface::onNetworkClientWorkerDisconnected() {
+    m_autoRefreshTimer->stop();
     qDebug() << "worker client disconnected";
     emit networkDisconnected();
 }
