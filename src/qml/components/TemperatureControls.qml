@@ -1,99 +1,176 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 
 Item {
     id: root
 
-    property bool showSetpoint : false
+    property bool controlsEnabled: true
+    property bool showingSetpoint : false
 
-    Column {
-        anchors.centerIn: parent
+    function setShowingSetpoint(value) {
+        if (value) {
+            hideSetpointTimer.restart()
+        } else {
+            temperatureSlider.value = core.messageLive.temperatureFahrenheit
+        }
+        showingSetpoint = value
+    }
+
+    Timer {
+        id: hideSetpointTimer
+        interval: 3000
+        running: false
+        repeat: false
+        onTriggered: {
+            if (temperatureSlider.pressed) {
+                restart()
+                return
+            }
+            setShowingSetpoint(false)
+        }
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
         spacing: 4
 
-        Row {
-            spacing: 12
-            anchors.horizontalCenter: parent.horizontalCenter
+        Item {
+            Layout.fillHeight: true
+            Layout.verticalStretchFactor: 1
+        }
 
-            Label {
-                id: temperatureTypeLabel
-                anchors.verticalCenter: parent.verticalCenter
-                text: showSetpoint ? "Setpoint" : "Current"
-                font.pixelSize: 14
+        Item {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.horizontalStretchFactor: 1
+            Layout.verticalStretchFactor: 1
+
+            // color: "#FF0000"
+
+            RowLayout {
+                id: temperatureInfoLayout
+                anchors.centerIn: parent
+                spacing: 12
+
+                Label {
+                    id: temperatureTypeLabel
+                    text: showingSetpoint ? "Setpoint" : "Current"
+                    font.pixelSize: 14
+                }
+                Label {
+                    id: temperatureValueLabel
+                    text: showingSetpoint ? temperatureSlider.value : core.messageLive.temperatureFahrenheit
+                    font.pixelSize: 28
+                }
             }
-            Label {
-                id: temperatureValueLabel
-                anchors.verticalCenter: parent.verticalCenter
-                text: showSetpoint ? temperatureSetpointSlider.value : core.messageLive.temperatureFahrenheit
-                font.pixelSize: 32
+            MouseArea {
+                anchors.fill: temperatureInfoLayout
+                hoverEnabled: true
+                onEntered: setShowingSetpoint(true)
+                onExited: setShowingSetpoint(false)
             }
         }
 
-        Row {
-            spacing: 8
-            anchors.horizontalCenter: parent.horizontalCenter
+        RowLayout {
+            Layout.topMargin: 10
+
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.horizontalStretchFactor: 1
+            Layout.verticalStretchFactor: 1
+
+            spacing: 6
 
             Button {
-                id: decreaseTemperatureSetpointButton
+                implicitWidth: 20
+                implicitHeight: 20
                 text: "-"
-                onReleased: temperatureSetpointSlider.decrease()
+                enabled: controlsEnabled
+                onReleased: temperatureSlider.decreaseTemperatureSetpoint()
             }
-
             Slider {
-                id: temperatureSetpointSlider
+                id: temperatureSlider
 
-                width: 200
+                Layout.fillWidth: true
+                // Layout.maximumWidth: 300
+                // width: 200
 
                 from: core.messageSettings.minTemperature
                 to: core.messageSettings.maxTemperature
                 stepSize: 1
                 value: 0
 
-                function setTemperatureSetpoint() {
+                enabled: controlsEnabled
+
+                function applyTemperatureSetpoint() {
                     if (isNaN(core.messageLiveReceivedAt.getTime())) {
                         return
                     }
+
+                    setShowingSetpoint(true)
+
                     const newValue = Number(value)
                     const currentValue = Number(core.messageLive.temperatureSetpointFahrenheit)
-                    // console.log(`pressed=${pressed}, value=${newValue}, current=${currentValue}, changed=${newValue !== currentValue}`)
                     if (!pressed && newValue !== currentValue) {
+                        // controlsEnabled = false
                         core.commandSetTemperatureSetpointFahrenheit(value)
                     }
                 }
+                function stepTemperatureSetpoint(func) {
+                    value = core.messageLive.temperatureSetpointFahrenheit
+                    func()
+                    applyTemperatureSetpoint()
+                }
+                function increaseTemperatureSetpoint() {
+                    stepTemperatureSetpoint(increase)
+                }
+                function decreaseTemperatureSetpoint() {
+                    stepTemperatureSetpoint(decrease)
+                }
 
-                onValueChanged: setTemperatureSetpoint()
                 onPressedChanged: {
-                    setTemperatureSetpoint()
-                    showSetpoint = pressed
+                    if (pressed) {
+                        setShowingSetpoint(true)
+                    } else {
+                        applyTemperatureSetpoint()
+                    }
                 }
             }
-
             Button {
-                id: increaseTemperatureSetpointButton
+                implicitWidth: 20
+                implicitHeight: 20
                 text: "+"
-                onReleased: temperatureSetpointSlider.increase()
+                enabled: controlsEnabled
+                onReleased: temperatureSlider.increaseTemperatureSetpoint()
             }
+        }
+        Item {
+            Layout.fillHeight: true
+            Layout.verticalStretchFactor: 1
         }
     }
 
-    Rectangle {
-        anchors.fill: parent
-        color: "transparent"
-        border.color: "#00FF00"
-        border.width: 1
-        radius: 2
-        z: -1
-    }
-
-    Component.onCompleted: {
-
-    }
+    // Component.onCompleted: {
+    // }
 
     Connections {
         target: core
         // enabled: root.visible
         function onMessageLiveChanged() {
-            console.log("setting slider value")
-            temperatureSetpointSlider.value = core.messageLive.temperatureSetpointFahrenheit
+            controlsEnabled = true
+            if (!showingSetpoint) {
+                temperatureSlider.value = core.messageLive.temperatureFahrenheit
+            }
         }
     }
+
+    // Rectangle {
+    //     anchors.fill: parent
+    //     color: "transparent"
+    //     border.color: "#00FF00"
+    //     border.width: 1
+    //     radius: 2
+    //     z: -1
+    // }
 }

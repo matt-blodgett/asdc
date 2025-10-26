@@ -1,5 +1,6 @@
 import QtCore
 import QtQuick
+import QtQuick.Controls.Fusion
 import QtQuick.Controls
 import QtQuick.Layouts
 
@@ -14,12 +15,16 @@ ApplicationWindow {
     minimumHeight: 300
 
     menuBar: MenuBar {
+        // background: Rectangle {
+        //     color: "#e0e0e0"
+        // }
         Menu {
             title: qsTr("File")
             MenuItem {
                 text: "Test Mode"
+                enabled: !startupPageFadeaway.running && startupPage.visible
                 onTriggered: {
-                    // core.testMode()
+                    core.testMode()
                     startupPageFadeaway.running = true
                 }
             }
@@ -44,7 +49,11 @@ ApplicationWindow {
     MainPage {
         id: mainPage
         anchors.fill: parent
-        visible: true
+        anchors.leftMargin: 6
+        anchors.rightMargin: 6
+        anchors.topMargin: 4
+        anchors.bottomMargin: 8
+        visible: false
     }
     StartupPage {
         id: startupPage
@@ -70,6 +79,9 @@ ApplicationWindow {
         visible: startupPageFadeaway.running || !startupPage.visible
 
         RowLayout {
+            // anchors.top: footerBorderTop.bottom
+            // anchors.left: parent.left
+            // width: parent.width
             anchors.fill: parent
             spacing: 0
 

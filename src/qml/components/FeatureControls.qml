@@ -53,6 +53,77 @@ Item {
         core[`commandSet${commandName}`](nextValue)
     }
 
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        RowLayout {
+            Layout.fillWidth: true
+
+            Button {
+                implicitWidth: 100
+                implicitHeight: 36
+                text: "Pump 1 - " + pumpStatusText(1)
+                enabled: controlsEnabled
+                onReleased: toggleControl("pump1")
+            }
+            Item {
+                Layout.fillWidth: true
+            }
+            Button {
+                implicitWidth: 100
+                implicitHeight: 36
+                text: "Pump 2 - " + pumpStatusText(2)
+                enabled: controlsEnabled
+                onReleased: toggleControl("pump2")
+            }
+            Item {
+                Layout.fillWidth: true
+            }
+            Button {
+                implicitWidth: 100
+                implicitHeight: 36
+                text: "Pump 3 - " +  pumpStatusText(3)
+                enabled: controlsEnabled
+                onReleased: toggleControl("pump3")
+            }
+        }
+
+        RowLayout {
+            Layout.topMargin: 10
+
+            Layout.fillWidth: true
+
+            Button {
+                implicitWidth: 100
+                implicitHeight: 36
+                text: "Lights - " + (core.messageLive.lights ? "ON" : "OFF")
+                enabled: controlsEnabled
+                onReleased: toggleControl("lights")
+            }
+            Item {
+                Layout.fillWidth: true
+            }
+            Button {
+                implicitWidth: 100
+                implicitHeight: 36
+                text: "EZ - " + (core.messageLive.allOn ? "ON" : "OFF")
+                enabled: controlsEnabled
+                onReleased: toggleControl("allOn")
+            }
+            Item {
+                Layout.fillWidth: true
+            }
+            Item {
+                implicitWidth: 100
+            }
+        }
+
+        Item {
+            Layout.fillHeight: true
+        }
+    }
+
     Connections {
         target: core
         // enabled: root.visible
@@ -61,58 +132,14 @@ Item {
         }
     }
 
-    GridLayout {
-        anchors.fill: parent
-        columns: 3
-        rowSpacing: 5
-        columnSpacing: 5
-
-        Button {
-            Layout.row: 0
-            Layout.column: 0
-            implicitWidth: 100
-            text: "Pump 1 - " + pumpStatusText(1)
-            enabled: controlsEnabled
-            onReleased: toggleControl("pump1")
-        }
-        Button {
-            Layout.row: 0
-            Layout.column: 1
-            text: "Pump 2 - " + pumpStatusText(2)
-            enabled: controlsEnabled
-            onReleased: toggleControl("pump2")
-        }
-        Button {
-            Layout.row: 0
-            Layout.column: 2
-            text: "Pump 3 - " +  pumpStatusText(3)
-            enabled: controlsEnabled
-            onReleased: toggleControl("pump3")
-        }
-        Button {
-            Layout.row: 1
-            Layout.column: 0
-            text: "Lights - " + (core.messageLive.lights ? "ON" : "OFF")
-            enabled: controlsEnabled
-            onReleased: toggleControl("lights")
-        }
-        Button {
-            Layout.row: 1
-            Layout.column: 1
-            text: "EZ - " + (core.messageLive.allOn ? "ON" : "OFF")
-            enabled: controlsEnabled
-            onReleased: toggleControl("allOn")
-        }
-    }
-
-    Rectangle {
-        anchors.fill: parent
-        color: "transparent"
-        border.color: "#0000FF"
-        border.width: 1
-        radius: 2
-        z: -1
-    }
+    // Rectangle {
+    //     anchors.fill: parent
+    //     color: "transparent"
+    //     border.color: "#0000FF"
+    //     border.width: 1
+    //     radius: 2
+    //     z: -1
+    // }
 }
 
 

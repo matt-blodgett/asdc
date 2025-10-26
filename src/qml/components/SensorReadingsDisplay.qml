@@ -40,6 +40,7 @@ Item {
 
     GridLayout {
         anchors.fill: parent
+
         columns: 6
         rowSpacing: 4
         columnSpacing: 2
@@ -200,13 +201,12 @@ Item {
         }
     }
 
-    // Optional: border for the whole widget
-    Rectangle {
-        anchors.fill: parent
-        color: "transparent"
-        border.color: "#ACACAC"
-        border.width: 1
-        radius: 2
-        z: -1
-    }
+    // Rectangle {
+    //     anchors.fill: parent
+    //     color: "transparent"
+    //     border.color: "#ACACAC"
+    //     border.width: 1
+    //     radius: 2
+    //     z: -1
+    // }
 }

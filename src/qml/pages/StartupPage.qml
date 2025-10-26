@@ -57,7 +57,7 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        Rectangle {
+        Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.horizontalStretchFactor: 1
@@ -70,7 +70,7 @@ Item {
                 color: "#3879B5"
             }
         }
-        Rectangle {
+        Item {
             Layout.fillHeight: true
             Layout.preferredWidth: 160
 
@@ -85,7 +85,7 @@ Item {
                     text: "asdc"
                     font.pixelSize: 36
                 }
-                Rectangle {
+                Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     Layout.verticalStretchFactor: 1
@@ -117,14 +117,14 @@ Item {
                     enabled: !core.discoveryWorking
                     onReleased: startDiscoverySearch()
                 }
-                Rectangle {
+                Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     Layout.verticalStretchFactor: 2
                 }
             }
         }
-        Rectangle {
+        Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.horizontalStretchFactor: 1

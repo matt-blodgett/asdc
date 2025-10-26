@@ -20,7 +20,7 @@ qt_add_qml_module(asdc
     URI asdc.qml
     VERSION 1.0
     QML_FILES
-        qml/components/DeviceStatusDisplay.qml
+        # qml/components/DeviceStatusDisplay.qml
         qml/components/FeatureControls.qml
         qml/components/LoadingDialog.qml
         qml/components/MessageViewer.qml
@@ -33,6 +33,7 @@ qt_add_qml_module(asdc
         qml/pages/SettingsPage.qml
         qml/pages/SqlBrowserPage.qml
         qml/pages/StartupPage.qml
+        qml/pages/ToolsPage.qml
 
         qml/Main.qml
 )

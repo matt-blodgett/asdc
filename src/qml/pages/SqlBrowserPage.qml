@@ -94,7 +94,7 @@ Item {
             }
         }
 
-        Rectangle {
+        Item {
             Layout.topMargin: 5
             Layout.bottomMargin: 0
             Layout.leftMargin: 0
@@ -145,7 +145,7 @@ Item {
                                 text: sqlModel.headerData(model.column, Qt.Horizontal)
                                 checkable: true
                                 checked: sqlTableView.columnWidth(model.column) !== 0
-                                onTriggered: function() {
+                                onTriggered: {
                                     if (sqlTableView.columnWidth(model.column) > 0) {
                                         sqlTableView.setColumnWidth(model.column, 0)
                                     } else {
@@ -169,7 +169,7 @@ Item {
                     }
                 }
 
-                delegate: Rectangle {
+                delegate: Item {
                     implicitHeight: delegateLayout.implicitHeight
 
                     readonly property string columnName : sqlModel.headerData(column, Qt.Horizontal)
@@ -178,6 +178,7 @@ Item {
                         id: delegateLayout
 
                         anchors.fill: parent
+                        spacing: 0
 
                         RowLayout {
                             id: columnHeaderTextLayout
@@ -186,10 +187,14 @@ Item {
                             Layout.fillWidth: true
                             Layout.horizontalStretchFactor: 1
 
+                            spacing: 0
+
                             Rectangle {
                                 Layout.fillHeight: true
                                 width: 1
-                                color: "#AAAAAA"
+                                // color: "#AAAAAA"
+                                color: "transparent"
+                                visible: column === 0
                             }
 
                             Rectangle {
@@ -197,6 +202,8 @@ Item {
                                 Layout.fillHeight: true
                                 Layout.horizontalStretchFactor: 1
                                 Layout.verticalStretchFactor: 1
+
+                                color: "#333333"
 
                                 Text {
                                     anchors.fill: parent
@@ -211,6 +218,7 @@ Item {
                                         }
                                         return columnName
                                     }
+                                    color: "#FFFFFF"
                                     elide: Text.ElideRight
                                 }
 
@@ -241,7 +249,8 @@ Item {
                             Rectangle {
                                 Layout.fillHeight: true
                                 width: 1
-                                color: "#AAAAAA"
+                                // color: "#AAAAAA"
+                                color: "transparent"
                             }
                         }
 
@@ -264,22 +273,25 @@ Item {
                 }
             }
 
-            Rectangle {
-                // edge-border
-                id: sqlTableHeaderViewBorderBottom
-
-                anchors.left: sqlTableHeaderView.left
-                anchors.right: sqlTableHeaderView.right
-                anchors.top: sqlTableHeaderView.bottom
-                height: 1
-                color: "#333333"
-            }
+            // Rectangle {
+            //     // edge-border
+            //     id: sqlTableHeaderViewBorderBottom
+            //     anchors.left: sqlTableHeaderView.left
+            //     anchors.right: sqlTableHeaderView.right
+            //     anchors.top: sqlTableHeaderView.bottom
+            //     height: 1
+            //     // color: "#333333"
+            //     color: "#FFFFFF"
+            // }
 
             ScrollView {
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.top: sqlTableHeaderViewBorderBottom.bottom
+                // anchors.top: sqlTableHeaderViewBorderBottom.bottom
+                anchors.top: sqlTableHeaderView.bottom
                 anchors.bottom: parent.bottom
+
+                anchors.leftMargin: 1
 
                 TableView {
                     id: sqlTableView

@@ -14,8 +14,8 @@ Rectangle {
 
     border.color: "#888888"
     border.width: 1
-    color: "#DDDDDD"
-
+    color: "#333333"
+    radius: 2
 
     // title: "Loading..."
     // modal: true
@@ -68,6 +68,7 @@ Rectangle {
                 id: displayMessageLabel
                 text: displayMessage
                 width: parent.width - 26
+                color: "#FFFFFF"
             }
             Loader {
                 id: iconLoader

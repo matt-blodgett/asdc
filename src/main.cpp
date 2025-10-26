@@ -13,6 +13,9 @@
 #define MESSAGE_PATTERN "%{if-debug}DBUG:%{endif}%{if-info}INFO:%{endif}%{if-warning}WARN:%{endif}%{if-critical}CRIT:%{endif}%{if-fatal}FATAL:%{endif} <%{function}> %{message}"
 
 
+
+
+
 int main(int argc, char *argv[])
 {
     QCoreApplication::setOrganizationName("QtProject");

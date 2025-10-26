@@ -149,6 +149,11 @@ void CoreInterface::testMode()
 {
     m_databaseClient->createConnectionSession("192.168.0.1");
 
+    m_messageSettings.setMinTemperature(52);
+    m_messageSettings.setMaxTemperature(104);
+    setMessageSettings(m_messageSettings, QDateTime::currentDateTime());
+    m_databaseClient->logMessageSettings(m_messageSettings, QDateTime::currentDateTime());
+
     // --------------------------------------------------
     // Live
     int count = 60;
@@ -163,7 +168,7 @@ void CoreInterface::testMode()
 
     m_messageLiveReceivedAt = QDateTime::currentDateTime();
     m_messageLive.setTemperatureFahrenheit(101);
-    m_messageLive.setTemperatureSetpointFahrenheit(103);
+    m_messageLive.setTemperatureSetpointFahrenheit(101);
     m_messageLive.setPump1(asdc::proto::Live::PumpStatus(1));
     setMessageLive(m_messageLive, QDateTime::currentDateTime());
     m_databaseClient->logMessageLive(m_messageLive, m_messageLiveReceivedAt);
@@ -217,11 +222,6 @@ void CoreInterface::testMode()
     m_messageOnzenLive.setPhColor(asdc::proto::OnzenLive::Color::COLOR_OK);
     setMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
     m_databaseClient->logMessageOnzenLive(m_messageOnzenLive, QDateTime::currentDateTime());
-
-    m_messageSettings.setMinTemperature(52);
-    m_messageSettings.setMaxTemperature(104);
-    setMessageSettings(m_messageSettings, QDateTime::currentDateTime());
-    m_databaseClient->logMessageSettings(m_messageSettings, QDateTime::currentDateTime());
 }
 
 
