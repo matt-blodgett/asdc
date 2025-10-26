@@ -1,6 +1,8 @@
 #include "core.h"
 
 #include <QThread>
+#include <QTimer>
+
 
 #include "net/discovery.h"
 #include "net/client.h"
@@ -23,6 +25,7 @@ CoreInterface::CoreInterface(QObject *parent)
     m_databaseClient = new asdc::db::DatabaseClient(this);
     m_discoveryClientWorkerThread = new QThread(this);
     m_networkClientWorkerThread = new QThread(this);
+    m_autoRefreshTimer = new QTimer(this);
 
     initDatabase();
     initDiscovery();
@@ -30,6 +33,9 @@ CoreInterface::CoreInterface(QObject *parent)
 
     m_discoveryClientWorkerThread->start();
     m_networkClientWorkerThread->start();
+
+    connect(m_autoRefreshTimer, &QTimer::timeout, this, &CoreInterface::autoRefreshCheck);
+    m_autoRefreshTimer->start(1000);
 
 
     // test();
@@ -107,7 +113,39 @@ void CoreInterface::initNetwork()
     connect(this, &CoreInterface::networkClientWorkerQueueCommand, worker, &asdc::net::NetworkClientWorker::queueCommand);
 }
 
-void CoreInterface::test()
+void CoreInterface::autoRefreshCheck() {
+    // qDebug() << m_messageLiveReceivedAt.isValid();
+    // qDebug() << m_messageOnzenLiveReceivedAt.isValid();
+    // qDebug() << m_messageErrorReceivedAt.isValid();
+
+    // if (m_messageLiveReceivedAt.isValid()) {
+    //     qDebug() << "message live";
+    //     qDebug() << QDateTime::currentDateTime();
+    //     qDebug() << m_messageLiveReceivedAt;
+
+    //     // QDateTime fiveMinutesAgo = QDateTime::currentDateTime().addSecs(-(5 * 60));
+    //     QDateTime fiveMinutesAgo = QDateTime::currentDateTime().addSecs(-2);
+    //     qDebug() << fiveMinutesAgo;
+
+    //     qDebug() << (m_messageLiveReceivedAt < fiveMinutesAgo);
+
+    // }
+
+    if (m_messageErrorReceivedAt.isValid()) {
+        qDebug() << "message error";
+        qDebug() << QDateTime::currentDateTime();
+        qDebug() << m_messageErrorReceivedAt;
+
+        // QDateTime fiveMinutesAgo = QDateTime::currentDateTime().addSecs(-(5 * 60));
+        QDateTime fiveMinutesAgo = QDateTime::currentDateTime().addSecs(-2);
+        qDebug() << fiveMinutesAgo;
+
+        qDebug() << (m_messageErrorReceivedAt < fiveMinutesAgo);
+
+    }
+}
+
+void CoreInterface::testMode()
 {
     m_databaseClient->createConnectionSession("192.168.0.1");
 

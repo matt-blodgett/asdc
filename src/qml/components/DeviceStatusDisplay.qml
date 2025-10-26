@@ -82,6 +82,7 @@ Item {
             onReleased: {
                 core.refreshMessageLive()
                 core.refreshMessageOnzenLive()
+                core.refreshMessageError()
             }
         }
     }

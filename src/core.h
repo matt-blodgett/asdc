@@ -21,6 +21,9 @@
 #include "asdc/proto/Settings.qpb.h"
 
 
+QT_FORWARD_DECLARE_CLASS(QTimer)
+
+
 namespace asdc::db {
 class DatabaseClient;
 }
@@ -78,9 +81,11 @@ private:
     void initDiscovery();
     void initNetwork();
 
+    void autoRefreshCheck();
 
-private:
-    void test();
+
+public:
+    Q_INVOKABLE void testMode();
 
 
 public:
@@ -196,6 +201,7 @@ private:
     asdc::db::DatabaseClient *m_databaseClient = nullptr;
     QThread *m_networkClientWorkerThread = nullptr;
     QThread *m_discoveryClientWorkerThread = nullptr;
+    QTimer *m_autoRefreshTimer = nullptr;
 
     bool m_discoveryWorking = false;
 

@@ -55,15 +55,6 @@ Item {
                 Layout.horizontalStretchFactor: 1
                 Layout.verticalStretchFactor: 1
             }
-
-            DeviceStatusDisplay {
-                id: deviceStatusDisplay
-                Layout.alignment: Qt.AlignHCenter
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.horizontalStretchFactor: 1
-                Layout.verticalStretchFactor: 1
-            }
         }
     }
 }

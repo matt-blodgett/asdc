@@ -121,27 +121,6 @@ Item {
         }
 
         Rectangle {
-
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.horizontalStretchFactor: 0
-            Layout.verticalStretchFactor: 1
-
-            RowLayout {
-                Button {
-                    text: "test discovery"
-                    enabled: !core.discoveryWorking
-                    onReleased: {
-                        core.testDiscovery()
-                    }
-                }
-                Label {
-                    text: core.discoveryWorking ? "WORKING" : "not working"
-                }
-            }
-        }
-
-        Rectangle {
             Layout.fillHeight: true
             Layout.verticalStretchFactor: 1
         }

@@ -4,27 +4,27 @@ import QtQuick.Controls
 Item {
     id: root
 
+    property bool showSetpoint : false
+
     Column {
         anchors.centerIn: parent
-        spacing: 8
+        spacing: 4
 
         Row {
-            spacing: 8
+            spacing: 12
             anchors.horizontalCenter: parent.horizontalCenter
 
             Label {
-                id: temperatureLabel
-                text: core.messageLive.temperatureFahrenheit
-                font.pixelSize: 32
-                horizontalAlignment: Text.AlignHCenter
-                // width: parent.width
+                id: temperatureTypeLabel
+                anchors.verticalCenter: parent.verticalCenter
+                text: showSetpoint ? "Setpoint" : "Current"
+                font.pixelSize: 14
             }
             Label {
-                id: setpointLabel
-                text: core.messageLive.temperatureSetpointFahrenheit
+                id: temperatureValueLabel
+                anchors.verticalCenter: parent.verticalCenter
+                text: showSetpoint ? temperatureSetpointSlider.value : core.messageLive.temperatureFahrenheit
                 font.pixelSize: 32
-                horizontalAlignment: Text.AlignHCenter
-                // width: parent.width
             }
         }
 
@@ -33,34 +33,42 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
 
             Button {
-                id: downButton
+                id: decreaseTemperatureSetpointButton
                 text: "-"
                 onReleased: temperatureSetpointSlider.decrease()
             }
 
             Slider {
                 id: temperatureSetpointSlider
+
+                width: 200
+
                 from: core.messageSettings.minTemperature
                 to: core.messageSettings.maxTemperature
-                value: core.messageLive.temperatureSetpointFahrenheit
                 stepSize: 1
-                width: 200
-                onValueChanged: {
-                    // console.log(`pressed=${pressed}, value=${value}`)
-                    if (!pressed && value !== core.messageLive.temperatureSetpointFahrenheit) {
+                value: 0
+
+                function setTemperatureSetpoint() {
+                    if (isNaN(core.messageLiveReceivedAt.getTime())) {
+                        return
+                    }
+                    const newValue = Number(value)
+                    const currentValue = Number(core.messageLive.temperatureSetpointFahrenheit)
+                    // console.log(`pressed=${pressed}, value=${newValue}, current=${currentValue}, changed=${newValue !== currentValue}`)
+                    if (!pressed && newValue !== currentValue) {
                         core.commandSetTemperatureSetpointFahrenheit(value)
                     }
                 }
+
+                onValueChanged: setTemperatureSetpoint()
                 onPressedChanged: {
-                    // console.log(`pressed=${pressed}, value=${value}`)
-                    if (!pressed && value !== core.messageLive.temperatureSetpointFahrenheit) {
-                        core.commandSetTemperatureSetpointFahrenheit(value)
-                    }
+                    setTemperatureSetpoint()
+                    showSetpoint = pressed
                 }
             }
 
             Button {
-                id: upButton
+                id: increaseTemperatureSetpointButton
                 text: "+"
                 onReleased: temperatureSetpointSlider.increase()
             }
@@ -74,5 +82,18 @@ Item {
         border.width: 1
         radius: 2
         z: -1
+    }
+
+    Component.onCompleted: {
+
+    }
+
+    Connections {
+        target: core
+        // enabled: root.visible
+        function onMessageLiveChanged() {
+            console.log("setting slider value")
+            temperatureSetpointSlider.value = core.messageLive.temperatureSetpointFahrenheit
+        }
     }
 }
