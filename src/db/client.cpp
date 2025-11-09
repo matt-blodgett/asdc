@@ -2,12 +2,15 @@
 
 #include <QSqlError>
 #include <QSqlQuery>
-
-#include <QFile>
-
+#include <QDateTime>
 #include <QVariant>
 #include <QMap>
-#include <QDateTime>
+#include <QFile>
+
+#include <QLoggingCategory>
+
+
+Q_DECLARE_LOGGING_CATEGORY(dbLog)
 
 
 // #include "asdc/proto/Clock.qpb.h"
@@ -518,21 +521,28 @@ DatabaseClient::DatabaseClient(QObject *parent)
 bool DatabaseClient::openDatabase(const bool &overwrite) {
     const QString path(ASDC_DATABASE_NAME);
 
-    qDebug() << "connecting to database at " << path;
+    qCInfo(dbLog) << "connecting to database" << path;
 
-    const bool isExistingDatabaseFile = QFile::exists(path);
+    QFile databaseFile(path);
+
+    const bool isExistingDatabaseFile = databaseFile.exists();
 
     if (isExistingDatabaseFile && overwrite) {
-        if (QFile::remove(path)) {
-            qDebug() << "removed existing database file";
+        qCWarning(dbLog) << "overwrite enabled, removing existing database file" << path;
+        if (databaseFile.remove()) {
+            qCDebug(dbLog) << "successfully deleted file" << path;
+        } else {
+            qCCritical(dbLog) << "error deleting existing database file" << path;
+            qCCritical(dbLog) << "error details:" << databaseFile.errorString();
+            return false;
         }
     }
 
     m_database.setDatabaseName(path);
 
     if (!m_database.open()) {
-        qWarning() << "error opening database file" << path;
-        qWarning() << m_database.lastError();
+        qCCritical(dbLog) << "error opening database file" << path;
+        qCCritical(dbLog) << "error details:" << m_database.lastError();
         return false;
     }
 
@@ -546,26 +556,34 @@ bool DatabaseClient::openDatabase(const bool &overwrite) {
 
     createProcessRun();
 
+    qCInfo(dbLog) << "successfully setup database connection" << path;
+
     return true;
 }
 
 bool DatabaseClient::validateSchema() {
+    qCDebug(dbLog) << "validating schema";
+
     const QStringList tables = {
         "process_run",
         "connection_session",
         "message_clock"
     };
+
     for (const QString &table : tables) {
         if (!m_database.tables().contains(table)) {
-            qWarning() << "database is improperly configured or corrupt";
+            qCCritical(dbLog) << "database is improperly configured or corrupt: does not contain table" << table;
             return false;
         }
     }
 
-    qDebug() << "schema validated";
+    qCDebug(dbLog) << "all schema validation tests passed";
+
     return true;
 }
 void DatabaseClient::initializeSchema() {
+    qCDebug(dbLog) << "initializing schema";
+
     QSqlQuery query(m_database);
 
     query.exec(ASDC_SQL_CREATE_TABLE_PROCESS_RUN);
@@ -585,7 +603,7 @@ void DatabaseClient::initializeSchema() {
 
     query.exec(ASDC_SQL_CREATE_TABLE_COMMAND_REQUEST);
 
-    qDebug() << "schema initialized";
+    qCDebug(dbLog) << "successfully initialized schema";
 }
 
 void DatabaseClient::createProcessRun() {
@@ -600,7 +618,7 @@ void DatabaseClient::createProcessRun() {
 
     m_processRunId = query.lastInsertId();
 
-    qDebug() << "created processRunId" << m_processRunId.toLongLong();
+    qCDebug(dbLog) << "created processRunId" << m_processRunId.toLongLong();
 }
 void DatabaseClient::createConnectionSession(const QString &host) {
     QSqlQuery query(m_database);
@@ -622,7 +640,7 @@ void DatabaseClient::createConnectionSession(const QString &host) {
 
     m_connectionSessionId = query.lastInsertId();
 
-    qDebug() << "created connectionSessionId" << m_connectionSessionId.toLongLong();
+    qCDebug(dbLog) << "created connectionSessionId" << m_connectionSessionId.toLongLong();
 }
 
 void DatabaseClient::logMessageClock(const asdc::proto::Clock &message, const QDateTime &messageReceivedAt) {
@@ -660,7 +678,7 @@ void DatabaseClient::logMessageClock(const asdc::proto::Clock &message, const QD
 
     query.exec();
 
-    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+    qCDebug(dbLog) << "wrote message" << message.staticMetaObject.className();
 }
 void DatabaseClient::logMessageConfiguration(const asdc::proto::Configuration &message, const QDateTime &messageReceivedAt) {
     QSqlQuery query(m_database);
@@ -729,7 +747,7 @@ void DatabaseClient::logMessageConfiguration(const asdc::proto::Configuration &m
 
     query.exec();
 
-    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+    qCDebug(dbLog) << "wrote message" << message.staticMetaObject.className();
 }
 void DatabaseClient::logMessageError(const asdc::proto::Error &message, const QDateTime &messageReceivedAt) {
     QSqlQuery query(m_database);
@@ -774,7 +792,7 @@ void DatabaseClient::logMessageError(const asdc::proto::Error &message, const QD
 
     query.exec();
 
-    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+    qCDebug(dbLog) << "wrote message" << message.staticMetaObject.className();
 }
 void DatabaseClient::logMessageFilter(const asdc::proto::Filter &message, const QDateTime &messageReceivedAt) {
     QSqlQuery query(m_database);
@@ -805,7 +823,7 @@ void DatabaseClient::logMessageFilter(const asdc::proto::Filter &message, const 
 
     query.exec();
 
-    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+    qCDebug(dbLog) << "wrote message" << message.staticMetaObject.className();
 }
 void DatabaseClient::logMessageInformation(const asdc::proto::Information &message, const QDateTime &messageReceivedAt) {
     QSqlQuery query(m_database);
@@ -876,7 +894,7 @@ void DatabaseClient::logMessageInformation(const asdc::proto::Information &messa
 
     query.exec();
 
-    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+    qCDebug(dbLog) << "wrote message" << message.staticMetaObject.className();
 }
 void DatabaseClient::logMessageLive(const asdc::proto::Live &message, const QDateTime &messageReceivedAt) {
     QSqlQuery query(m_database);
@@ -963,7 +981,7 @@ void DatabaseClient::logMessageLive(const asdc::proto::Live &message, const QDat
 
     query.exec();
 
-    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+    qCDebug(dbLog) << "wrote message" << message.staticMetaObject.className();
 }
 void DatabaseClient::logMessageOnzenLive(const asdc::proto::OnzenLive &message, const QDateTime &messageReceivedAt) {
     QSqlQuery query(m_database);
@@ -1032,7 +1050,7 @@ void DatabaseClient::logMessageOnzenLive(const asdc::proto::OnzenLive &message, 
 
     query.exec();
 
-    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+    qCDebug(dbLog) << "wrote message" << message.staticMetaObject.className();
 }
 void DatabaseClient::logMessageOnzenSettings(const asdc::proto::OnzenSettings &message, const QDateTime &messageReceivedAt) {
     QSqlQuery query(m_database);
@@ -1103,7 +1121,7 @@ void DatabaseClient::logMessageOnzenSettings(const asdc::proto::OnzenSettings &m
 
     query.exec();
 
-    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+    qCDebug(dbLog) << "wrote message" << message.staticMetaObject.className();
 }
 void DatabaseClient::logMessagePeak(const asdc::proto::Peak &message, const QDateTime &messageReceivedAt) {
     QSqlQuery query(m_database);
@@ -1180,7 +1198,7 @@ void DatabaseClient::logMessagePeak(const asdc::proto::Peak &message, const QDat
 
     query.exec();
 
-    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+    qCDebug(dbLog) << "wrote message" << message.staticMetaObject.className();
 }
 void DatabaseClient::logMessagePeripheral(const asdc::proto::Peripheral &message, const QDateTime &messageReceivedAt) {
     QSqlQuery query(m_database);
@@ -1215,7 +1233,7 @@ void DatabaseClient::logMessagePeripheral(const asdc::proto::Peripheral &message
 
     query.exec();
 
-    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+    qCDebug(dbLog) << "wrote message" << message.staticMetaObject.className();
 }
 void DatabaseClient::logMessageSettings(const asdc::proto::Settings &message, const QDateTime &messageReceivedAt) {
     QSqlQuery query(m_database);
@@ -1292,7 +1310,7 @@ void DatabaseClient::logMessageSettings(const asdc::proto::Settings &message, co
 
     query.exec();
 
-    qDebug() << "logged message:" << message.staticMetaObject.className() << "- received at:" << messageReceivedAt;
+    qCDebug(dbLog) << "wrote message" << message.staticMetaObject.className();
 }
 
 void DatabaseClient::logCommand(const QString &name, const QVariant &valueFrom, const QVariant &valueTo, const QDateTime &commandSentAt) {
@@ -1324,7 +1342,7 @@ void DatabaseClient::logCommand(const QString &name, const QVariant &valueFrom, 
 
     query.exec();
 
-    qDebug() << "logged command:" << name << "- value:" << valueTo << "- sent at:" << commandSentAt;
+    qCDebug(dbLog) << "logged command:" << name << "- value:" << valueTo << "- sent at:" << commandSentAt;
 }
 
 };  // namespace asdc::db

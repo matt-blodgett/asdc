@@ -3,7 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-import asdc.pb
+import src.qml.proto
 
 Item {
     id: root
@@ -25,32 +25,34 @@ Item {
     }
     function toggleControl(controlName) {
         const currentValue = core.messageLive[controlName]
-        // const nextValue = !currentValue
+        // const newValue = !currentValue
 
-        let nextValue = null
+        let newValue = null
 
         if (typeof currentValue === "boolean") {
-            nextValue = !currentValue
+            newValue = !currentValue
         } else if (controlName === "pump1") {
             if (currentValue === Live.PUMP_OFF) {
-                nextValue = Live.PUMP_LOW
+                newValue = Live.PUMP_LOW
             } else if (currentValue === Live.PUMP_LOW) {
-                nextValue = Live.PUMP_HIGH
+                newValue = Live.PUMP_HIGH
             } else if (currentValue === Live.PUMP_HIGH) {
-                nextValue = Live.PUMP_OFF
+                newValue = Live.PUMP_OFF
             }
         } else if (controlName.startsWith("pump")) {
-            nextValue = currentValue === Live.PUMP_OFF ? Live.PUMP_HIGH : Live.PUMP_OFF
+            newValue = currentValue === Live.PUMP_OFF ? Live.PUMP_HIGH : Live.PUMP_OFF
         }
 
-        if (nextValue === null) {
+        if (newValue === null) {
             return
         }
 
         const commandName = controlName.charAt(0).toUpperCase() + controlName.slice(1)
 
+        console.info(`requesting command "${commandName}": ${currentValue} -> ${newValue}`)
+
         controlsEnabled = false
-        core[`commandSet${commandName}`](nextValue)
+        core[`commandSet${commandName}`](newValue)
     }
 
     ColumnLayout {

@@ -16,11 +16,15 @@ qt_add_executable(asdc
     main.cpp
 )
 
+set_source_files_properties(qml/AppStyle.qml PROPERTIES
+    QT_QML_SINGLETON_TYPE TRUE
+)
+
+
 qt_add_qml_module(asdc
-    URI asdc.qml
+    URI src.qml
     VERSION 1.0
     QML_FILES
-        # qml/components/DeviceStatusDisplay.qml
         qml/components/FeatureControls.qml
         qml/components/LoadingDialog.qml
         qml/components/MessageViewer.qml
@@ -35,8 +39,35 @@ qt_add_qml_module(asdc
         qml/pages/StartupPage.qml
         qml/pages/ToolsPage.qml
 
+        qml/AppStyle.qml
         qml/Main.qml
 )
+
+# qt_add_qml_module(asdc_qml_components
+#     URI src.qml.components
+#     VERSION 1.0
+#     QML_FILES
+#         qml/components/FeatureControls.qml
+#         qml/components/LoadingDialog.qml
+#         qml/components/MessageViewer.qml
+#         qml/components/SensorReadingsDisplay.qml
+#         qml/components/TemperatureControls.qml
+
+#         # qml/pages/DashboardPage.qml
+#         # qml/pages/MainPage.qml
+#         # qml/pages/MessageViewerPage.qml
+#         # qml/pages/SettingsPage.qml
+#         # qml/pages/SqlBrowserPage.qml
+#         # qml/pages/StartupPage.qml
+#         # qml/pages/ToolsPage.qml
+
+# )
+
+
+# add_subdirectory(qml)
+# add_subdirectory(qml/pages)
+# add_subdirectory(qml/components)
+
 
 qt_add_resources(assets qml/assets/assets.qrc)
 target_sources(asdc PRIVATE ${assets})
@@ -45,9 +76,9 @@ if(WIN32)
     target_sources(asdc PRIVATE qml/assets/win32.rc)
 endif()
 
-qt_add_protobuf(asdc_proto
+qt_add_protobuf(asdc_qml_proto
     QML
-    QML_URI asdc.pb
+    QML_URI src.qml.proto
     GENERATE_PACKAGE_SUBFOLDERS
     PROTO_FILES
         proto/Clock.proto
@@ -76,7 +107,12 @@ target_link_libraries(asdc PRIVATE
     Qt6::Quick
     Qt6::Protobuf
     Qt6::ProtobufQuick
-    asdc_proto
+
+    asdc_qml_proto
+
+    # asdc_qml
+    # asdc_qml_pages
+    # asdc_qml_components
 )
 
 set_target_properties(asdc PROPERTIES

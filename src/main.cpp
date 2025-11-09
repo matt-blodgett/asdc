@@ -1,23 +1,61 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
-#include <qlogging.h>
-#include <QIcon>
+// #include <QIcon>
+#include <QStyleHints>
+
+#include <QLoggingCategory>
 
 #include "core.h"
-
 #include "db/sqlquerymodel.h"
 
 
-//#define MESSAGE_PATTERN "[%{time yyyyMMdd h:mm:ss.zzz}] %{if-debug}DBUG:%{endif}%{if-info}INFO:%{endif}%{if-warning}WARN:%{endif}%{if-critical}CRIT:%{endif}%{if-fatal}FATAL:%{endif} <%{function}> %{message}"
-#define MESSAGE_PATTERN "%{if-debug}DBUG:%{endif}%{if-info}INFO:%{endif}%{if-warning}WARN:%{endif}%{if-critical}CRIT:%{endif}%{if-fatal}FATAL:%{endif} <%{function}> %{message}"
+// #define MESSAGE_PATTERN "%{time yyyy-MM-dd hh:mm:ss.zzz} %{if-debug}DEBUG%{endif}%{if-info}INFO%{endif}%{if-warning}WARNING%{endif}%{if-critical}CRITICAL%{endif}%{if-fatal}FATAL%{endif} %{category} %{file}:%{line} <%{function}> %{message}"
+// #define MESSAGE_PATTERN "%{time yyyy-MM-dd hh:mm:ss.zzz} %{if-debug}DEBUG%{endif}%{if-info}INFO%{endif}%{if-warning}WARNING%{endif}%{if-critical}CRITICAL%{endif}%{if-fatal}FATAL%{endif} %{category} <%{function}> %{message}"
+
+// #define MESSAGE_PATTERN "%{time yyyy-MM-ddThh:mm:ss.zzz} | %{if-debug}DEBUG%{endif}%{if-info}INFO%{endif}%{if-warning}WARNING%{endif}%{if-critical}CRITICAL%{endif}%{if-fatal}FATAL%{endif} | %{category} | %{function} | %{file}:%{line} | %{message}"
+#define MESSAGE_PATTERN "%{time yyyy-MM-ddThh:mm:ss.zzz} | %{if-debug}DEBUG%{endif}%{if-info}INFO%{endif}%{if-warning}WARNING%{endif}%{if-critical}CRITICAL%{endif}%{if-fatal}FATAL%{endif} | %{category} | %{function} | %{message}"
+// #define MESSAGE_PATTERN "%{time yyyy-MM-ddThh:mm:ss.zzz} | %{if-debug}DEBUG%{endif}%{if-info}INFO%{endif}%{if-warning}WARNING%{endif}%{if-critical}CRITICAL%{endif}%{if-fatal}FATAL%{endif} | %{category} | %{message}"
 
 
+Q_LOGGING_CATEGORY(coreLog, "asdc.core")
+Q_LOGGING_CATEGORY(netLog, "asdc.net")
+Q_LOGGING_CATEGORY(dbLog, "asdc.db")
+Q_LOGGING_CATEGORY(workerLog, "asdc.worker")
 
+
+void initLogging() {
+    qSetMessagePattern(MESSAGE_PATTERN);
+
+    QStringList filterRules;
+
+    // filterRules << "asdc.*.debug=false";
+
+    filterRules << "asdc.core.debug=true";
+    filterRules << "asdc.core.info=true";
+
+    filterRules << "asdc.net.debug=false";
+    filterRules << "asdc.net.info=false";
+
+    filterRules << "asdc.db.debug=false";
+    filterRules << "asdc.db.info=true";
+
+    filterRules << "asdc.worker.debug=false";
+    filterRules << "asdc.worker.info=false";
+
+    filterRules << "qml.debug=true";
+
+    filterRules << "default.debug=true";
+
+    QString filterRulesString = filterRules.join("\n");
+    QLoggingCategory::setFilterRules(filterRulesString);
+}
 
 
 int main(int argc, char *argv[])
 {
+    initLogging();
+
     QCoreApplication::setOrganizationName("QtProject");
     QCoreApplication::setApplicationName("asdc");
     QCoreApplication::setApplicationVersion("0.1.0");
@@ -25,9 +63,9 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     QQmlApplicationEngine engine;
 
-    // app.setWindowIcon(QIcon("src/assets/icons/hot_tub.ico"));
+    // QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
 
-    qSetMessagePattern(MESSAGE_PATTERN);
+    // app.setWindowIcon(QIcon("src/assets/icons/hot_tub.ico"));
 
     qRegisterMetaType<QAbstractSocket::SocketState>();
     qmlRegisterUncreatableType<QAbstractSocket>("asdc.types.sockets", 1, 0, "SocketState", "SocketState is an enum, not a creatable type.");
@@ -41,7 +79,10 @@ int main(int argc, char *argv[])
     asdc::core::CoreInterface *core = new asdc::core::CoreInterface(&app);
     engine.rootContext()->setContextProperty("core", core);
 
-    engine.loadFromModule("asdc.qml", "Main");
+    // qDebug() << engine.importPathList();
+    // qDebug() << engine.baseUrl();
+
+    engine.loadFromModule("src.qml", "Main");
 
     return app.exec();
 }

@@ -6,6 +6,7 @@ import Qt.labs.qmlmodels
 
 import asdc.types.sockets
 
+// import src.qml.components
 import "../components"
 
 Item {

@@ -6,6 +6,7 @@ import Qt.labs.qmlmodels
 
 import asdc.types.sockets
 
+// import src.qml.components
 import "../components"
 
 Item {
@@ -173,6 +174,7 @@ Item {
                 if (foundHosts.length > 1) {
                     console.log("Found multiple hosts - using the first")
                 }
+                console.info(`connecting with host ip address ${foundHosts[0]}`)
                 hostIpAddressTextField.text = foundHosts[0]
                 startNetworkConnectToDevice()
             }
@@ -187,7 +189,7 @@ Item {
             }
         }
         function onNetworkErrorOccurred() {
-            console.log(core.networkError)
+            console.warning(core.networkError)
             loadingDialog.processStatus = "error"
             loadingDialog.displayMessage = "Connection failed!"
         }

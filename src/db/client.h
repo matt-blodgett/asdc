@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QSqlDatabase>
 
+QT_FORWARD_DECLARE_CLASS(QProtobufMessage)
 
 #include "asdc/proto/Clock.qpb.h"
 #include "asdc/proto/Configuration.qpb.h"
@@ -16,11 +17,6 @@
 #include "asdc/proto/Peak.qpb.h"
 #include "asdc/proto/Peripheral.qpb.h"
 #include "asdc/proto/Settings.qpb.h"
-
-
-
-QT_FORWARD_DECLARE_CLASS(QProtobufMessage)
-
 
 
 namespace asdc::net {
@@ -65,13 +61,11 @@ public:
 
 private:
     QSqlDatabase m_database;
-
     QVariant m_processRunId;
     QVariant m_connectionSessionId;
 
 signals:
 };
-
 
 };  // namespace asdc::db
 

@@ -2,8 +2,6 @@
 
 #include <QtZlib/zlib.h>
 
-#include <QDebug>
-
 #include "bytebuffer.h"
 
 

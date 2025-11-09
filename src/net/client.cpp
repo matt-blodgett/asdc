@@ -1,17 +1,16 @@
 #include "client.h"
 
 #include <QTcpSocket>
-
 #include <QDateTime>
 
-#include "packet.h"
+#include <QLoggingCategory>
 
+#include "packet.h"
 #include "asdc/proto/Command.qpb.h"
 
 
-#include <QDebug>
-
-
+Q_DECLARE_LOGGING_CATEGORY(netLog)
+Q_DECLARE_LOGGING_CATEGORY(workerLog)
 
 
 void printHex(const QByteArray &data) {
@@ -19,7 +18,7 @@ void printHex(const QByteArray &data) {
     for (unsigned char c : data) {
         hexBytes << QString("%1").arg(c, 2, 16, QLatin1Char('0')).toUpper();
     }
-    qDebug().noquote() << hexBytes.join(' ');
+    qCDebug(netLog).noquote() << hexBytes.join(' ');
 }
 
 
@@ -32,7 +31,7 @@ QByteArray Header::preamble() const {
 void Header::unpack(const QByteArray &data) {
     if (data.size() < HEADER_SIZE) {
         isValid = false;
-        qWarning()
+        qCWarning(netLog)
             << "error decoding:"
             << "received" << data.size() << "bytes;"
             << "expecting at least" << HEADER_SIZE << "bytes";
@@ -41,7 +40,7 @@ void Header::unpack(const QByteArray &data) {
 
     if (data.mid(0, 4) != preamble()) {
         isValid = false;
-        qWarning()
+        qCWarning(netLog)
             << "error decoding:"
             << "data did not start with correct preamble";
         return;
@@ -104,20 +103,14 @@ NetworkClient::~NetworkClient() {
 }
 
 bool NetworkClient::connectToDevice(const QString &host, const quint16 &port) {
-    qDebug() << "connecting to" << host << "on port" << port << "...";
+    qCInfo(netLog) << "connecting to host" << host << "on port" << port;
 
-    qDebug() << "current state:" << m_socket->state();
+    qCDebug(netLog) << "current connection state:" << m_socket->state();
     if (m_socket->state() != QAbstractSocket::UnconnectedState) {
-        qDebug() << "attempting to disconnect";
-        m_socket->disconnectFromHost();
+        disconnectFromDevice();
         if (m_socket->state() != QAbstractSocket::UnconnectedState) {
-            qDebug() << "waiting to disconnect";
-            if (!m_socket->waitForDisconnected(3000)) {
-                qWarning() << "still not disconnected; exiting";
-                return false;
-            } else {
-                qDebug() << "disconnected";
-            }
+            qCCritical(netLog) << "failed to disconnect; exiting";
+            return false;
         }
     }
 
@@ -132,28 +125,34 @@ bool NetworkClient::connectToDevice(const QString &host, const quint16 &port) {
 
     m_socket->connectToHost(host, port);
     if (!m_socket->waitForConnected(3000)) {
-        qWarning() << "error: " << m_socket->errorString();
+        qCWarning(netLog) << "error connecting to host" << host;
+        qCWarning(netLog) << "error details:" << m_socket->errorString();
+        return false;
     }
+
+    qCInfo(netLog) << "sucessfully connected to host" << host;
 
     return isConnected();
 }
 void NetworkClient::disconnectFromDevice() {
+    qCInfo(netLog) << "disconnecting from host" << m_host;
+
     if (m_socket->state() == QAbstractSocket::UnconnectedState) {
-        qDebug() << "already disconnected";
+        qCInfo(netLog) << "already disconnected";
         return;
     }
-    qDebug() << "disconnecting from host";
 
     m_socket->disconnectFromHost();
     if (m_socket->state() != QAbstractSocket::UnconnectedState) {
-        qDebug() << "waiting to disconnect";
+        qCDebug(netLog) << "waiting to disconnect";
         if (!m_socket->waitForDisconnected(3000)) {
-            qWarning() << "still not disconnected; exiting";
+            qCWarning(netLog) << "error disconnecting from host" << m_host;
+            qCWarning(netLog) << "error details:" << m_socket->errorString();
             return;
         }
     }
 
-    qDebug() << "disconnected from host";
+    qCInfo(netLog) << "successfully disconnected from host" << m_host;
 }
 
 bool NetworkClient::isConnected() const {
@@ -175,58 +174,43 @@ QAbstractSocket::SocketError NetworkClient::error() const {
     return m_socket->error();
 }
 
-// void NetworkClient::decodeOne(const QByteArray &data) {
-//     Header header(data);
-//     if (!header.isValid) {
-//         return;
-//     }
-//     qDebug() << "skipped =" << header.skipped;
-//     qDebug() << "checksum =" << header.checksum;
-//     qDebug() << "counter =" << header.counter;
-//     qDebug() << "unused =" << header.unused;
-//     qDebug() << "messageType =" << header.messageType;
-//     qDebug() << "length =" << header.length;
-
-//     QByteArray payload = data.mid(HEADER_SIZE, header.length);
-//     QByteArray remainder = data.mid(HEADER_SIZE + header.length, -1);
-//     qDebug() << "payload =" << payload;
-//     qDebug() << "remainder =" << remainder;
-// }
 bool NetworkClient::writePacket(const MessageType &messageType, const QByteArray &payload) {
+    qCInfo(netLog) << "writing requested message" << messageType;
+
     if (!isConnected()) {
-        qWarning() << "socket not connected!";
+        qCWarning(netLog) << "failed to write message: socket not connected";
         return false;
     }
 
     Packet packet(static_cast<qint16>(messageType), payload);
     QByteArray packetBytes = packet.serialize();
 
-    qDebug() << "writing message type" << messageType;
-
     m_socket->write(packetBytes);
     if (!m_socket->waitForBytesWritten(3000)) {
-        qWarning() << "write timeout!";
+        qCWarning(netLog) << "error writing message type" << messageType;
+        qCWarning(netLog) << "error details:" << m_socket->errorString();
         return false;
     }
+
+    qCInfo(netLog) << "successfully wrote packet for message type" << messageType;
 
     return true;
 }
 
 void NetworkClient::readAndParseData() {
-    qDebug() << "data ready to read from host:" << m_socket->bytesAvailable() << "bytes";
+    qCDebug(netLog) << "data ready to read from host:" << m_socket->bytesAvailable() << "bytes";
 
     QByteArray data = m_socket->read(2048);
 
     while (!data.isEmpty()) {
         Header header(data);
-
         if (!header.isValid) {
             break;
         }
 
         MessageType messageType = static_cast<MessageType>(header.messageType);
+        qCInfo(netLog) << "received message" << messageType;
         if (messageType != MessageType::HEARTBEAT) {
-            qDebug() << "got header message type:" << messageType;
             emit headerReceived(header);
         }
 
@@ -252,14 +236,16 @@ NetworkClientWorker::NetworkClientWorker(QObject *parent)
 };
 
 void NetworkClientWorker::connectToDevice(const QString &host) {
+    qCDebug(workerLog) << "connecting to host" << host;
     m_networkClient->connectToDevice(host);
 }
 void NetworkClientWorker::disconnectFromDevice() {
+    qCDebug(workerLog) << "disconnecting from host";
     m_networkClient->disconnectFromDevice();
 }
 
 void NetworkClientWorker::queueMessage(const MessageType &messageType) {
-    qDebug() << "requesting message" << messageType;
+    qCDebug(workerLog) << "requesting message" << messageType;
     m_networkClient->writePacket(messageType);
 }
 void NetworkClientWorker::queueCommand(const QString &name, const QVariant &value) {
@@ -271,22 +257,24 @@ void NetworkClientWorker::queueCommand(const QString &name, const QVariant &valu
         return;
     }
 
-    qDebug() << "requesting command:" << name << "->" << value;
+    qCDebug(workerLog) << "requesting command" << name << "->" << value;
     m_networkClient->writePacket(MessageType::COMMAND, payload);
 }
 
 bool NetworkClientWorker::serializerHasError() {
     if (m_serializer.lastError() != QAbstractProtobufSerializer::Error::None) {
-        qWarning().nospace()
-        << "Unable to deserialize ("
-        << qToUnderlying(m_serializer.lastError()) << ")"
-        << m_serializer.lastErrorString();
+        qCWarning(workerLog).nospace()
+            << "Unable to deserialize ("
+            << qToUnderlying(m_serializer.lastError()) << ")"
+            << m_serializer.lastErrorString();
         return true;
     }
     return false;
 }
 void NetworkClientWorker::onHeaderReceived(const Header &header) {
     MessageType messageType = static_cast<MessageType>(header.messageType);
+
+    qCDebug(workerLog) << "received message" << messageType;
 
     if (messageType == MessageType::CLOCK) {
         asdc::proto::Clock message;

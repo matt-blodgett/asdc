@@ -5,9 +5,7 @@
 #include <QAbstractSocket>
 #include <QtProtobuf/QProtobufSerializer>
 
-
 QT_FORWARD_DECLARE_CLASS(QTcpSocket)
-
 
 #include "asdc/proto/Clock.qpb.h"
 #include "asdc/proto/Configuration.qpb.h"
@@ -115,7 +113,6 @@ public:
     QAbstractSocket::SocketError error() const;
 
 public:
-    // void decodeOne(const QByteArray &data);
     bool writePacket(const MessageType &messageType, const QByteArray &payload = QByteArray());
 
 private:

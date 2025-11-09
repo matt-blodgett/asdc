@@ -1,5 +1,6 @@
 import QtQuick
 
+// import src.qml.components
 import "../components"
 
 Item {

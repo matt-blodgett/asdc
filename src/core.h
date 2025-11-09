@@ -2,11 +2,11 @@
 #define CORE_H
 
 #include <QObject>
-#include <QAbstractSocket>
 #include <QDateTime>
-
+#include <QAbstractSocket>
 #include <QtProtobuf/QProtobufSerializer>
 
+QT_FORWARD_DECLARE_CLASS(QTimer)
 
 #include "asdc/proto/Clock.qpb.h"
 #include "asdc/proto/Configuration.qpb.h"
@@ -19,9 +19,6 @@
 #include "asdc/proto/Peak.qpb.h"
 #include "asdc/proto/Peripheral.qpb.h"
 #include "asdc/proto/Settings.qpb.h"
-
-
-QT_FORWARD_DECLARE_CLASS(QTimer)
 
 
 namespace asdc::db {
@@ -167,6 +164,9 @@ public:
 private:
     bool isCommandIntValid(const QString &name, qint32 value);
     void sendCommand(const QString &name, const QVariant &value);
+
+    // void sendCommand(const QString &name, qint32 value);
+
 
 public:
     Q_INVOKABLE void commandSetTemperatureSetpointFahrenheit(qint32 value);

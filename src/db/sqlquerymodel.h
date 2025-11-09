@@ -5,14 +5,16 @@
 
 #include <QSqlQueryModel>
 #include <QSqlTableModel>
-#include <QHash>
-#include <QByteArray>
 #include <QSqlRecord>
-
 #include <QSqlQuery>
+#include <QByteArray>
+#include <QHash>
 #include <QVariant>
 
-#include <QDebug>
+#include <QLoggingCategory>
+
+
+Q_DECLARE_LOGGING_CATEGORY(dbLog)
 
 
 class SqlTableModel : public QSqlTableModel
@@ -136,9 +138,9 @@ public:
             filterStatement = columnFilterStatement;
         }
 
-        qDebug() << "genericFilterString:" << m_genericFilterString;
-        qDebug() << "columnFilterStrings:" << m_columnFilterStrings;
-        qDebug() << "filterStatement:" << filterStatement;
+        qCDebug(dbLog) << "genericFilterString:" << m_genericFilterString;
+        qCDebug(dbLog) << "columnFilterStrings:" << m_columnFilterStrings;
+        qCDebug(dbLog) << "filterStatement:" << filterStatement;
 
         setFilter(filterStatement);
     }
@@ -186,7 +188,7 @@ public:
     }
 
     // QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override{
-    //     qDebug() << section;
+    //     qCDebug(dbLog) << section;
     //     if (section == 0) {
     //         return "ID";
     //     } else if (section == 1) {

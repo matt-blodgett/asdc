@@ -5,12 +5,14 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 import "pages"
+// import src.qml.pages
+
 
 ApplicationWindow {
     id: mainWindow
 
     title: "asdc"
-    visible: true
+    visible: false
     minimumWidth: 330
     minimumHeight: 300
 
@@ -30,6 +32,25 @@ ApplicationWindow {
             }
             MenuSeparator {}
             MenuItem {
+                text: "Light Scheme"
+                onTriggered: {
+                    AppStyle.setColorScheme(Qt.Light)
+                }
+            }
+            MenuItem {
+                text: "Dark Scheme"
+                onTriggered: {
+                    AppStyle.setColorScheme(Qt.Dark)
+                }
+            }
+            MenuItem {
+                text: "System Scheme"
+                onTriggered: {
+                    AppStyle.setColorScheme(Qt.Unknown)
+                }
+            }
+            MenuSeparator {}
+            MenuItem {
                 text: "Exit"
                 onTriggered: Qt.quit()
             }
@@ -37,13 +58,13 @@ ApplicationWindow {
     }
 
 
-    MouseArea {
-        anchors.fill: parent
-        onClicked: {
-            console.log("base mouse area pressed")
-            focus = true
-        }
-    }
+    // MouseArea {
+    //     anchors.fill: parent
+    //     onClicked: {
+    //         console.log("base mouse area pressed")
+    //         focus = true
+    //     }
+    // }
 
 
     MainPage {
@@ -79,9 +100,6 @@ ApplicationWindow {
         visible: startupPageFadeaway.running || !startupPage.visible
 
         RowLayout {
-            // anchors.top: footerBorderTop.bottom
-            // anchors.left: parent.left
-            // width: parent.width
             anchors.fill: parent
             spacing: 0
 
@@ -89,22 +107,22 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.horizontalStretchFactor: 1
                 text: "Home"
-                onReleased: mainPage.currentPageIndex = 0
                 checked: mainPage.currentPageIndex === 0
+                onReleased: mainPage.currentPageIndex = 0
             }
             ToolButton {
                 Layout.fillWidth: true
                 Layout.horizontalStretchFactor: 1
                 text: "Tools"
-                onReleased: mainPage.currentPageIndex = 1
                 checked: mainPage.currentPageIndex === 1
+                onReleased: mainPage.currentPageIndex = 1
             }
             ToolButton {
                 Layout.fillWidth: true
                 Layout.horizontalStretchFactor: 1
                 text: "Settings"
-                onReleased: mainPage.currentPageIndex = 2
                 checked: mainPage.currentPageIndex === 2
+                onReleased: mainPage.currentPageIndex = 2
             }
         }
     }
@@ -115,5 +133,20 @@ ApplicationWindow {
         property alias y: mainWindow.y
         property alias width: mainWindow.width
         property alias height: mainWindow.height
+    }
+
+    // Connections {
+    //     target: AppStyle
+    //     function onColorSchemeChanged() {
+    //         console.log(AppStyle.colorScheme)
+    //     }
+    //     function onDarkModeChanged() {
+    //         console.log(AppStyle.darkMode)
+    //     }
+    // }
+
+    Component.onCompleted: {
+        AppStyle.setColorScheme(AppStyle.colorScheme)
+        mainWindow.visible = true
     }
 }

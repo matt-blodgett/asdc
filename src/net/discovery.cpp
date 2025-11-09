@@ -11,9 +11,14 @@
 #include <QMutexLocker>
 #include <algorithm>
 
+#include <QLoggingCategory>
+
+
+Q_DECLARE_LOGGING_CATEGORY(netLog)
+Q_DECLARE_LOGGING_CATEGORY(workerLog)
+
 
 namespace asdc::net {
-
 
 
 // Returns the local IPv4 address that would be used for the default route
@@ -49,9 +54,6 @@ static QString localIPv4ViaDefaultRoute()
 }
 
 
-
-
-// ---- helpers ----
 static inline QString ipv4ToString(quint32 h) {
     return QString::number((h >> 24) & 0xFF) + "." +
            QString::number((h >> 16) & 0xFF) + "." +
@@ -138,32 +140,41 @@ static inline bool udpProbe(const QString &host,
 }
 
 QStringList DiscoveryClient::search(const QString &ipAddress,
-                             int netmaskCidr,
-                             int timeoutMs,
-                             int maxWorkers)
+                                    int netmaskCidr,
+                                    int timeoutMs,
+                                    int maxWorkers)
 {
-    const QByteArray QUERY    = QByteArrayLiteral("Query,BlueFalls,");
+    const QByteArray QUERY = QByteArrayLiteral("Query,BlueFalls,");
     const QByteArray RESPONSE = QByteArrayLiteral("Response,BlueFalls,");
-    const quint16 QUERY_PORT    = 9131;
+    const quint16 QUERY_PORT = 9131;
     const quint16 RESPONSE_PORT = 33327;
+
+    qCDebug(netLog) << "initializing search";
 
     QString ipAddr(ipAddress);
     if (ipAddr == QString()) {
+        qCDebug(netLog) << "no ip address supplied, getting local ipv4 default";
         ipAddr = localIPv4ViaDefaultRoute();
-        qDebug() << "using local ipv4 default route:" << ipAddr;
+        qCDebug(netLog) << "using local ipv4 default route" << ipAddr;
     }
 
-    qDebug() << "discovery searching -"
-             << "ip:" << ipAddr
-             << "- netmask:" << netmaskCidr
-             << "- timeoutMs:" << timeoutMs
-             << "- maxWorkers:" << maxWorkers;
+    qCInfo(netLog).nospace()
+        << "scanning network:"
+        << " ip supplied=" << ipAddress
+        << ", ip fallback=" << ipAddr
+        << ", netmask=" << netmaskCidr
+        << ", timeout=" << timeoutMs
+        << ", workers=" << maxWorkers;
 
     QStringList hosts = enumerateHosts(ipAddr, netmaskCidr);
-    if (hosts.isEmpty())
+    if (hosts.isEmpty()) {
+        qCWarning(netLog) << "no hosts found to search; exiting";
         return {};
+    }
 
-    qDebug() << "querying" << hosts.length() << "hosts";
+    qCDebug(netLog)
+        << "found" << hosts.length()
+        << "hosts to query; starting udp probes";
 
     QStringList found;
     QMutex foundMutex;
@@ -183,6 +194,11 @@ QStringList DiscoveryClient::search(const QString &ipAddress,
 
     pool.waitForDone();
 
+    qCInfo(netLog) << "discovered" << found.length() << "valid hosts";
+    if (found.length() > 0) {
+        qCInfo(netLog) << "discovered hosts:" << found;
+    }
+
     // std::sort(found.begin(), found.end());
     return found;
 }
@@ -196,15 +212,23 @@ DiscoveryClientWorker::DiscoveryClientWorker(QObject *parent)
 
 void DiscoveryClientWorker::search()
 {
-    emit startedSearch();
+    qCDebug(workerLog) << "starting discovery search";
 
     m_hostsFound.clear();
+    emit startedSearch();
+
     m_hostsFound = m_discoveryClient->search();
+
+    qCDebug(workerLog) << "discovered" << m_hostsFound.length() << "valid hosts";
+    if (m_hostsFound.length() > 0) {
+        qCDebug(workerLog) << "discovered hosts:" << m_hostsFound;
+    }
 
     foreach (const QString &host, m_hostsFound) {
         emit hostFound(host);
     }
 
+    qCDebug(workerLog) << "finished discovery search";
     emit finishedSearch();
 }
 

@@ -5,6 +5,11 @@ import QtQuick.Layouts
 
 import asdc.types.sockets
 
+// import "../"
+
+// import ExampleProject
+// import src.qml
+
 Item {
     id: root
 
@@ -121,6 +126,37 @@ Item {
         }
 
         Rectangle {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.horizontalStretchFactor: 0
+            Layout.verticalStretchFactor: 1
+
+            ComboBox {
+                id: colorSchemeComboBox
+                model: [
+                    { text: "System", value: Qt.Unknown },
+                    { text: "Light", value: Qt.Light },
+                    { text: "Dark", value: Qt.Dark }
+                ]
+                textRole: "text"
+                valueRole: "value"
+                onActivated: {
+                    AppStyle.setColorScheme(currentValue)
+                }
+                Connections {
+                    target: AppStyle
+                    function onColorSchemeChanged() {
+                        const toIndex = colorSchemeComboBox.indexOfValue(AppStyle.colorScheme)
+                        const currentIndex = colorSchemeComboBox.currentIndex
+                        if (toIndex !== currentIndex) {
+                            colorSchemeComboBox.currentIndex = toIndex
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
             Layout.fillHeight: true
             Layout.verticalStretchFactor: 1
         }
@@ -130,4 +166,10 @@ Item {
         category: "network"
         property alias hostIpAddress: hostIpAddressTextField.text
     }
+
+    // Settings {
+    //     id: settings
+    //     category: "style"
+    //     property alias colorScheme: root.pollingInterval
+    // }
 }

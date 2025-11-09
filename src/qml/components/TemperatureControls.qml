@@ -5,7 +5,7 @@ import QtQuick.Layouts
 Item {
     id: root
 
-    property bool controlsEnabled: true
+    property bool controlsEnabled : true
     property bool showingSetpoint : false
 
     function setShowingSetpoint(value) {
@@ -113,7 +113,8 @@ Item {
                     const newValue = Number(value)
                     const currentValue = Number(core.messageLive.temperatureSetpointFahrenheit)
                     if (!pressed && newValue !== currentValue) {
-                        // controlsEnabled = false
+                        console.info(`requesting command "TemperatureSetpointFahrenheit": ${currentValue} -> ${newValue}`)
+                        controlsEnabled = false
                         core.commandSetTemperatureSetpointFahrenheit(value)
                     }
                 }

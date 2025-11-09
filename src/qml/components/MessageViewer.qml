@@ -372,6 +372,8 @@ Item {
                         property string currentMessageName: ""
 
                         function populateData(messageName) {
+                            console.log(`populate data for message "${messageName}"`)
+
                             messageTableView.currentMessageName = messageName
 
                             const fields = messageTableView[`fields${messageName}`]
@@ -458,10 +460,6 @@ Item {
                             bottomPadding: 5
                         }
 
-                        Component.onCompleted: {
-                            messageTableView.populateData("Live")
-                        }
-
                         Connections {
                             target: core
                             enabled: root.visible
@@ -498,6 +496,10 @@ Item {
                             function onMessageSettingsChanged() {
                                 messageTableView.onMessageChanged("Settings")
                             }
+                        }
+
+                        Component.onCompleted: {
+                            messageTableView.populateData("Live")
                         }
                     }
                 }
@@ -560,7 +562,7 @@ Item {
                                 if (!currentMessageName) {
                                     return
                                 }
-                                console.log(`refreshing message "${currentMessageName}"`)
+                                console.info(`refreshing message "${currentMessageName}"`)
                                 core[`refreshMessage${currentMessageName}`]()
                             }
                         }

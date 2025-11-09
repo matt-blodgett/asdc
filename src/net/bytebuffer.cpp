@@ -1,7 +1,6 @@
 #include "bytebuffer.h"
 
 #include <QBuffer>
-#include <QDebug>
 
 
 // Packs a qint32 into a 4-byte array in big-endian order

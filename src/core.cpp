@@ -3,17 +3,18 @@
 #include <QThread>
 #include <QTimer>
 
+#include <QLoggingCategory>
 
 #include "net/discovery.h"
 #include "net/client.h"
 #include "db/client.h"
 
 
-// #include <QDir>
-// QDir dir(":/");
-// for (auto entry : dir.entryList()) {
-//     qWarning() << "Found entry in resources:" << entry;
-// }
+Q_DECLARE_LOGGING_CATEGORY(coreLog)
+
+
+static constexpr auto MAX_MESSAGE_AGE_SECONDS = 60;
+static constexpr auto AUTO_REFRESH_INTERVAL_SECONDS = 10;
 
 
 namespace asdc::core {
@@ -37,13 +38,15 @@ CoreInterface::CoreInterface(QObject *parent)
     connect(m_autoRefreshTimer, &QTimer::timeout, this, &CoreInterface::autoRefreshCheck);
 }
 CoreInterface::~CoreInterface() {
-    qDebug() << "quitting worker threads";
+    qCDebug(coreLog) << "exiting application: quitting worker threads gracefully";
 
     m_networkClientWorkerThread->quit();
     m_networkClientWorkerThread->wait();
 
     m_discoveryClientWorkerThread->quit();
     m_discoveryClientWorkerThread->wait();
+
+    qCDebug(coreLog) << "all worker threads quit";
 }
 
 void CoreInterface::initDatabase() {
@@ -110,24 +113,33 @@ void CoreInterface::initNetwork()
 }
 
 void CoreInterface::autoRefreshCheck() {
+    qCDebug(coreLog).nospace() << "checking for stale messages (>" << MAX_MESSAGE_AGE_SECONDS << " seconds old)";
+
     if (m_networkState != QAbstractSocket::SocketState::ConnectedState) {
+        qCDebug(coreLog) << "not connected to a device";
+        qCDebug(coreLog) << "stopping auto refresh timer";
         m_autoRefreshTimer->stop();
         return;
     }
 
-    const int maxMessageAgeSecs = 60;
-    const QDateTime maxMessageAgeDateTime = QDateTime::currentDateTime().addSecs(-maxMessageAgeSecs);
+    const QDateTime maxMessageAgeDateTime = QDateTime::currentDateTime().addSecs(-MAX_MESSAGE_AGE_SECONDS);
 
     if (m_messageLiveReceivedAt.isValid() && m_messageLiveReceivedAt < maxMessageAgeDateTime) {
-        qDebug() << "refreshing stale message: type = LIVE, received =" << m_messageLiveReceivedAt << ", threshold =" << maxMessageAgeDateTime;
+        qCDebug(coreLog).nospace()
+            << "refreshing stale message: type=LIVE, received=" << m_messageLiveReceivedAt
+            << ", threshold=" << maxMessageAgeDateTime;
         refreshMessageLive();
     }
     if (m_messageOnzenLiveReceivedAt.isValid() && m_messageOnzenLiveReceivedAt < maxMessageAgeDateTime) {
-        qDebug() << "refreshing stale message: type = ONZEN_LIVE, received =" << m_messageOnzenLiveReceivedAt << ", threshold =" << maxMessageAgeDateTime;
+        qCDebug(coreLog).nospace()
+            << "refreshing stale message: type=ONZEN_LIVE, received=" << m_messageOnzenLiveReceivedAt
+            << ", threshold=" << maxMessageAgeDateTime;
         refreshMessageOnzenLive();
     }
     if (m_messageErrorReceivedAt.isValid() && m_messageErrorReceivedAt < maxMessageAgeDateTime) {
-        qDebug() << "refreshing stale message: type = ERROR, received =" << m_messageErrorReceivedAt << ", threshold =" << maxMessageAgeDateTime;
+        qCDebug(coreLog).nospace()
+            << "refreshing stale message: type=ERROR, received=" << m_messageErrorReceivedAt
+            << ", threshold=" << maxMessageAgeDateTime;
         refreshMessageError();
     }
 }
@@ -156,7 +168,7 @@ void CoreInterface::testMode()
 
     m_messageLiveReceivedAt = QDateTime::currentDateTime();
     m_messageLive.setTemperatureFahrenheit(101);
-    m_messageLive.setTemperatureSetpointFahrenheit(101);
+    m_messageLive.setTemperatureSetpointFahrenheit(100);
     m_messageLive.setPump1(asdc::proto::Live::PumpStatus(1));
     setMessageLive(m_messageLive, QDateTime::currentDateTime());
     m_databaseClient->logMessageLive(m_messageLive, m_messageLiveReceivedAt);
@@ -215,54 +227,64 @@ void CoreInterface::testMode()
 
 void CoreInterface::discoverySearch()
 {
-    if (!m_discoveryWorking) {
-        emit discoveryClientWorkerSearch();
+    if (m_discoveryWorking) {
+        qCWarning(coreLog) << "discovery search already running";
+        return;
     }
+
+    qCInfo(coreLog) << "starting discovery search";
+    emit discoveryClientWorkerSearch();
 }
 
 void CoreInterface::networkConnectToDevice(const QString &host) {
+    qCInfo(coreLog) << "connecting to host" << host;
     emit networkClientWorkerConnectToDevice(host);
 }
 void CoreInterface::networkDisconnectFromDevice() {
+    qCInfo(coreLog) << "disconnecting from host" << m_networkHost;
     emit networkClientWorkerDisconnectFromDevice();
 }
 
 void CoreInterface::onDiscoveryClientWorkerStartedSearch() {
+    qCInfo(coreLog) << "discovery search started";
     setDiscoveryWorking(true);
     emit discoveryStartedSearch();
 }
 void CoreInterface::onDiscoveryClientWorkerFinishedSearch() {
+    qCInfo(coreLog) << "discovery search finished";
     setDiscoveryWorking(false);
     emit discoveryFinishedSearch();
 }
 void CoreInterface::onDiscoveryClientWorkerHostFound(const QString &host) {
-    qDebug() << "found host" << host;
+    qCInfo(coreLog) << "discovery search found host" << host;
 }
 
 void CoreInterface::onNetworkClientWorkerHostChanged(const QString &host) {
     m_networkHost = host;
+    qCInfo(coreLog) << "network host changed:" << m_networkHost;
     m_databaseClient->createConnectionSession(m_networkHost);
-    qDebug() << m_networkHost;
     emit networkHostChanged();
 }
 void CoreInterface::onNetworkClientWorkerConnected() {
-    m_autoRefreshTimer->start(5000);
-    qDebug() << "worker client connected";
+    qCInfo(coreLog) << "connected to host" << m_networkHost;
+    qCDebug(coreLog) << "starting auto refresh timer; interval =" << AUTO_REFRESH_INTERVAL_SECONDS << "seconds";
+    m_autoRefreshTimer->start(AUTO_REFRESH_INTERVAL_SECONDS * 1000);
     emit networkConnected();
 }
 void CoreInterface::onNetworkClientWorkerDisconnected() {
+    qCInfo(coreLog) << "disconnected from host" << m_networkHost;
+    qCDebug(coreLog) << "stopping auto refresh timer";
     m_autoRefreshTimer->stop();
-    qDebug() << "worker client disconnected";
     emit networkDisconnected();
 }
 void CoreInterface::onNetworkClientWorkerStateChanged(QAbstractSocket::SocketState socketState) {
     m_networkState = socketState;
-    qDebug() << m_networkState;
+    qCInfo(coreLog) << "network state changed:" << m_networkState;
     emit networkStateChanged();
 }
 void CoreInterface::onNetworkClientWorkerErrorOccurred(QAbstractSocket::SocketError socketError) {
     m_networkError = socketError;
-    qDebug() << m_networkError;
+    qCWarning(coreLog) << "network error occurred:" << m_networkError;
     emit networkErrorOccurred();
 }
 
@@ -353,126 +375,164 @@ void CoreInterface::setDiscoveryWorking(bool working) {
         return;
     }
     m_discoveryWorking = working;
-    qDebug() << m_discoveryWorking;
+    // qCDebug(coreLog) << "discovery working changed:" << m_discoveryWorking;
     emit discoveryWorkingChanged();
 }
 
 void CoreInterface::setMessageClock(const asdc::proto::Clock &message, const QDateTime &messageReceivedAt) {
     m_messageClock = message;
     m_messageClockReceivedAt = messageReceivedAt;
+    qCInfo(coreLog) << "received message" << message.staticMetaObject.className();
     emit messageClockChanged();
 }
 void CoreInterface::setMessageConfiguration(const asdc::proto::Configuration &message, const QDateTime &messageReceivedAt) {
     m_messageConfiguration = message;
     m_messageConfigurationReceivedAt = messageReceivedAt;
+    qCInfo(coreLog) << "received message" << message.staticMetaObject.className();
     emit messageConfigurationChanged();
 }
 void CoreInterface::setMessageError(const asdc::proto::Error &message, const QDateTime &messageReceivedAt) {
     m_messageError = message;
     m_messageErrorReceivedAt = messageReceivedAt;
+    qCInfo(coreLog) << "received message" << message.staticMetaObject.className();
     emit messageErrorChanged();
 }
 void CoreInterface::setMessageFilter(const asdc::proto::Filter &message, const QDateTime &messageReceivedAt) {
     m_messageFilter = message;
     m_messageFilterReceivedAt = messageReceivedAt;
+    qCInfo(coreLog) << "received message" << message.staticMetaObject.className();
     emit messageFilterChanged();
 }
 void CoreInterface::setMessageInformation(const asdc::proto::Information &message, const QDateTime &messageReceivedAt) {
     m_messageInformation = message;
     m_messageInformationReceivedAt = messageReceivedAt;
+    qCInfo(coreLog) << "received message" << message.staticMetaObject.className();
     emit messageInformationChanged();
 }
 void CoreInterface::setMessageLive(const asdc::proto::Live &message, const QDateTime &messageReceivedAt) {
     m_messageLive = message;
     m_messageLiveReceivedAt = messageReceivedAt;
+    qCInfo(coreLog) << "received message" << message.staticMetaObject.className();
     emit messageLiveChanged();
 }
 void CoreInterface::setMessageOnzenLive(const asdc::proto::OnzenLive &message, const QDateTime &messageReceivedAt) {
     m_messageOnzenLive = message;
     m_messageOnzenLiveReceivedAt = messageReceivedAt;
+    qCInfo(coreLog) << "received message" << message.staticMetaObject.className();
     emit messageOnzenLiveChanged();
 }
 void CoreInterface::setMessageOnzenSettings(const asdc::proto::OnzenSettings &message, const QDateTime &messageReceivedAt) {
     m_messageOnzenSettings = message;
     m_messageOnzenSettingsReceivedAt = messageReceivedAt;
+    qCInfo(coreLog) << "received message" << message.staticMetaObject.className();
     emit messageOnzenSettingsChanged();
 }
 void CoreInterface::setMessagePeak(const asdc::proto::Peak &message, const QDateTime &messageReceivedAt) {
     m_messagePeak = message;
     m_messagePeakReceivedAt = messageReceivedAt;
+    qCInfo(coreLog) << "received message" << message.staticMetaObject.className();
     emit messagePeakChanged();
 }
 void CoreInterface::setMessagePeripheral(const asdc::proto::Peripheral &message, const QDateTime &messageReceivedAt) {
     m_messagePeripheral = message;
     m_messagePeripheralReceivedAt = messageReceivedAt;
+    qCInfo(coreLog) << "received message" << message.staticMetaObject.className();
     emit messagePeripheralChanged();
 }
 void CoreInterface::setMessageSettings(const asdc::proto::Settings &message, const QDateTime &messageReceivedAt) {
     m_messageSettings = message;
     m_messageSettingsReceivedAt = messageReceivedAt;
+    qCInfo(coreLog) << "received message" << message.staticMetaObject.className();
     emit messageSettingsChanged();
 }
 
 void CoreInterface::refreshMessageClock() {
-    emit networkClientWorkerQueueMessage(asdc::net::MessageType::CLOCK);
+    const asdc::net::MessageType messageType = asdc::net::MessageType::CLOCK;
+    qCInfo(coreLog) << "requesting message" << messageType;
+    emit networkClientWorkerQueueMessage(messageType);
 }
 void CoreInterface::refreshMessageConfiguration() {
-    emit networkClientWorkerQueueMessage(asdc::net::MessageType::CONFIGURATION);
+    const asdc::net::MessageType messageType = asdc::net::MessageType::CONFIGURATION;
+    qCInfo(coreLog) << "requesting message" << messageType;
+    emit networkClientWorkerQueueMessage(messageType);
 }
 void CoreInterface::refreshMessageError() {
-    emit networkClientWorkerQueueMessage(asdc::net::MessageType::ERROR);
+    const asdc::net::MessageType messageType = asdc::net::MessageType::ERROR;
+    qCInfo(coreLog) << "requesting message" << messageType;
+    emit networkClientWorkerQueueMessage(messageType);
 }
 void CoreInterface::refreshMessageFilter() {
-    emit networkClientWorkerQueueMessage(asdc::net::MessageType::FILTERS);
+    const asdc::net::MessageType messageType = asdc::net::MessageType::FILTERS;
+    qCInfo(coreLog) << "requesting message" << messageType;
+    emit networkClientWorkerQueueMessage(messageType);
 }
 void CoreInterface::refreshMessageInformation() {
-    emit networkClientWorkerQueueMessage(asdc::net::MessageType::INFORMATION);
+    const asdc::net::MessageType messageType = asdc::net::MessageType::INFORMATION;
+    qCInfo(coreLog) << "requesting message" << messageType;
+    emit networkClientWorkerQueueMessage(messageType);
 }
 void CoreInterface::refreshMessageLive() {
-    emit networkClientWorkerQueueMessage(asdc::net::MessageType::LIVE);
+    const asdc::net::MessageType messageType = asdc::net::MessageType::LIVE;
+    qCInfo(coreLog) << "requesting message" << messageType;
+    emit networkClientWorkerQueueMessage(messageType);
 }
 void CoreInterface::refreshMessageOnzenLive() {
-    emit networkClientWorkerQueueMessage(asdc::net::MessageType::ONZEN_LIVE);
+    const asdc::net::MessageType messageType = asdc::net::MessageType::ONZEN_LIVE;
+    qCInfo(coreLog) << "requesting message" << messageType;
+    emit networkClientWorkerQueueMessage(messageType);
 }
 void CoreInterface::refreshMessageOnzenSettings() {
-    emit networkClientWorkerQueueMessage(asdc::net::MessageType::ONZEN_SETTINGS);
+    const asdc::net::MessageType messageType = asdc::net::MessageType::ONZEN_SETTINGS;
+    qCInfo(coreLog) << "requesting message" << messageType;
+    emit networkClientWorkerQueueMessage(messageType);
 }
 void CoreInterface::refreshMessagePeak() {
-    emit networkClientWorkerQueueMessage(asdc::net::MessageType::PEAK);
+    const asdc::net::MessageType messageType = asdc::net::MessageType::PEAK;
+    qCInfo(coreLog) << "requesting message" << messageType;
+    emit networkClientWorkerQueueMessage(messageType);
 }
 void CoreInterface::refreshMessagePeripheral() {
-    emit networkClientWorkerQueueMessage(asdc::net::MessageType::PERIPHERAL);
+    const asdc::net::MessageType messageType = asdc::net::MessageType::PERIPHERAL;
+    qCInfo(coreLog) << "requesting message" << messageType;
+    emit networkClientWorkerQueueMessage(messageType);
 }
 void CoreInterface::refreshMessageSettings() {
-    emit networkClientWorkerQueueMessage(asdc::net::MessageType::SETTINGS);
+    const asdc::net::MessageType messageType = asdc::net::MessageType::SETTINGS;
+    qCInfo(coreLog) << "requesting message" << messageType;
+    emit networkClientWorkerQueueMessage(messageType);
 }
 
 bool CoreInterface::isCommandIntValid(const QString &name, qint32 value) {
     if (name == "setTemperatureSetpointFahrenheit") {
         if (value < m_messageSettings.minTemperature() || value > m_messageSettings.maxTemperature()) {
-            qWarning() << "invalid value for:" << name << "- got" << value
-                       << "; expected between minTemperature" << m_messageSettings.minTemperature()
-                       << "and maxTemperature" << m_messageSettings.maxTemperature();
+            qCWarning(coreLog).nospace()
+                << "invalid value for " << name << ": got " << value
+                << ", expected between minTemperature " << m_messageSettings.minTemperature()
+                << "and maxTemperature " << m_messageSettings.maxTemperature();
             return false;
         }
     } else if (name.startsWith("setPump") || name.startsWith("setBlower")) {
         int max = 2;
         if (value < 0 || value > max) {
-            qWarning() << "invalid value for:" << name << "- got" << value
-                       << "; expected between 0 and" << max;
+            qCWarning(coreLog).nospace()
+                << "invalid value for " << name << ": got " << value
+                << ", expected between 0 and " << max;
             return false;
         }
     } else if (name == "setSaunaState") {
         int max = 4;
         if (value < 0 || value > max) {
-            qWarning() << "invalid value for:" << name << "- got" << value
-                       << "; expected between 0 and" << max;
+            qCWarning(coreLog).nospace()
+                << "invalid value for " << name << ": got " << value
+                << ", expected between 0 and " << max;
             return false;
         }
     }
     return true;
 }
 void CoreInterface::sendCommand(const QString &name, const QVariant &value) {
+    qCInfo(coreLog) << "requesting command" << name << "->" << value;
+
     QString propertyName = name;
     propertyName.remove(0, 3);
     propertyName[0] = propertyName[0].toLower();
@@ -481,11 +541,20 @@ void CoreInterface::sendCommand(const QString &name, const QVariant &value) {
 
     if (!currentValue.isValid()) {
         currentValue = "";
-    }
+        qCDebug(coreLog) << "setting" << propertyName << "from <invalid> to" << value;
+    } else {
+        if (value.typeId() == qMetaTypeId<bool>()) {
+            qCDebug(coreLog) << "setting" << propertyName << "from" << currentValue.toBool() << "to" << value.toBool();
+        } else if (value.typeId() == qMetaTypeId<int>()) {
+            qCDebug(coreLog) << "setting" << propertyName << "from" << currentValue.toInt() << "to" << value.toInt();
+        } else {
+            qCDebug(coreLog) << "setting" << propertyName << "from" << currentValue << "to" << value;
+        }
 
-    if (value == currentValue) {
-        qDebug() << "requested value == current value:" << value << "==" << currentValue;
-        return;
+        if (value == currentValue) {
+            qCWarning(coreLog) << "requested value same as current value:" << value << "==" << currentValue;
+            return;
+        }
     }
 
     m_databaseClient->logCommand(name, currentValue, value, QDateTime::currentDateTime());
