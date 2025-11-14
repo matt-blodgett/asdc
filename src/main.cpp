@@ -2,10 +2,11 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 // #include <QIcon>
-#include <QStyleHints>
+// #include <QStyleHints>
 
 #include <QLoggingCategory>
 
+#include "appbuildinfo.h"
 #include "core.h"
 #include "db/sqlquerymodel.h"
 
@@ -22,6 +23,7 @@ Q_LOGGING_CATEGORY(coreLog, "asdc.core")
 Q_LOGGING_CATEGORY(netLog, "asdc.net")
 Q_LOGGING_CATEGORY(dbLog, "asdc.db")
 Q_LOGGING_CATEGORY(workerLog, "asdc.worker")
+
 
 
 void initLogging() {
@@ -51,20 +53,26 @@ void initLogging() {
     QLoggingCategory::setFilterRules(filterRulesString);
 }
 
-
 int main(int argc, char *argv[])
 {
     initLogging();
 
+    // qDebug() << "Version:" << BUILDINFO_VERSION;
+    // qDebug() << "Build Date:" << BUILDINFO_DATE;
+    // qDebug() << "Build Type:" << BUILDINFO_TYPE;
+    // qDebug() << "OS:" << BUILDINFO_OS;
+    // qDebug() << "Arch:" << BUILDINFO_ARCH;
+    // qDebug() << "Compiler:" << BUILDINFO_COMPILER;
+    // qDebug() << "Qt Version:" << BUILDINFO_QT_VERSION;
+
     QCoreApplication::setOrganizationName("QtProject");
     QCoreApplication::setApplicationName("asdc");
-    QCoreApplication::setApplicationVersion("0.1.0");
+    QCoreApplication::setApplicationVersion(BUILDINFO_VERSION);
 
     QGuiApplication app(argc, argv);
     QQmlApplicationEngine engine;
 
     // QGuiApplication::styleHints()->setColorScheme(Qt::ColorScheme::Light);
-
     // app.setWindowIcon(QIcon("src/assets/icons/hot_tub.ico"));
 
     qRegisterMetaType<QAbstractSocket::SocketState>();
@@ -75,6 +83,9 @@ int main(int argc, char *argv[])
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app, []() { QCoreApplication::exit(-1); }, Qt::QueuedConnection);
     QObject::connect(&engine, &QQmlApplicationEngine::quit, &app, &QGuiApplication::quit, Qt::QueuedConnection);
+
+    AppBuildInfo *appBuildInfo = new AppBuildInfo(&app);
+    engine.rootContext()->setContextProperty("appBuildInfo", appBuildInfo);
 
     asdc::core::CoreInterface *core = new asdc::core::CoreInterface(&app);
     engine.rootContext()->setContextProperty("core", core);

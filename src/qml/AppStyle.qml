@@ -22,8 +22,7 @@ QtObject {
         const systemScheme = Qt.styleHints.colorScheme
         // const currentScheme = root.colorScheme
 
-        // console.log(`toScheme=${toScheme},currentScheme=${currentScheme},systemScheme=${systemScheme},darkMode=${root.darkMode}`)
-        console.log(`setColorScheme: toScheme=${toScheme},currentScheme=${root.colorScheme},systemScheme=${systemScheme},darkMode=${root.darkMode}`)
+        console.log(`currentScheme=${root.colorScheme},toScheme=${toScheme},systemScheme=${systemScheme},darkMode=${root.darkMode}`)
 
         if (toScheme !== systemScheme) {
             Qt.styleHints.colorScheme = toScheme

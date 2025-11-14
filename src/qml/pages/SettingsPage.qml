@@ -134,9 +134,9 @@ Item {
             ComboBox {
                 id: colorSchemeComboBox
                 model: [
-                    { text: "System", value: Qt.Unknown },
                     { text: "Light", value: Qt.Light },
-                    { text: "Dark", value: Qt.Dark }
+                    { text: "Dark", value: Qt.Dark },
+                    { text: "System", value: Qt.Unknown }
                 ]
                 textRole: "text"
                 valueRole: "value"

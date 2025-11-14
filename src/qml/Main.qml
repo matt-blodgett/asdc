@@ -5,13 +5,13 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 import "pages"
-// import src.qml.pages
-
+import "components"
 
 ApplicationWindow {
     id: mainWindow
 
     title: "asdc"
+
     visible: false
     minimumWidth: 330
     minimumHeight: 300
@@ -32,29 +32,53 @@ ApplicationWindow {
             }
             MenuSeparator {}
             MenuItem {
-                text: "Light Scheme"
-                onTriggered: {
-                    AppStyle.setColorScheme(Qt.Light)
-                }
-            }
-            MenuItem {
-                text: "Dark Scheme"
-                onTriggered: {
-                    AppStyle.setColorScheme(Qt.Dark)
-                }
-            }
-            MenuItem {
-                text: "System Scheme"
-                onTriggered: {
-                    AppStyle.setColorScheme(Qt.Unknown)
-                }
-            }
-            MenuSeparator {}
-            MenuItem {
                 text: "Exit"
                 onTriggered: Qt.quit()
             }
         }
+        Menu {
+            title: qsTr("View")
+            Menu {
+                title: qsTr("Theme")
+                MenuItem {
+                    text: "Light"
+                    checkable: true
+                    checked: AppStyle.colorScheme === Qt.Light
+                    onTriggered: {
+                        AppStyle.setColorScheme(Qt.Light)
+                    }
+                }
+                MenuItem {
+                    text: "Dark"
+                    checkable: true
+                    checked: AppStyle.colorScheme === Qt.Dark
+                    onTriggered: {
+                        AppStyle.setColorScheme(Qt.Dark)
+                    }
+                }
+                MenuItem {
+                    text: "System"
+                    checkable: true
+                    checked: AppStyle.colorScheme === Qt.Unknown
+                    onTriggered: {
+                        AppStyle.setColorScheme(Qt.Unknown)
+                    }
+                }
+            }
+        }
+        Menu {
+            title: qsTr("Help")
+            MenuItem {
+                text: "About"
+                onTriggered: {
+                    aboutDialog.show()
+                }
+            }
+        }
+    }
+
+    AboutDialog {
+        id: aboutDialog
     }
 
 

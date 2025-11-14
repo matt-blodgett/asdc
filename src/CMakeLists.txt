@@ -1,7 +1,52 @@
+# --------------------------------------------------------------------------------
+# asdc - desktop
+
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+
+# --------------------------------------------------------------------------------
+# qt setup
 
 find_package(Qt6 REQUIRED COMPONENTS Core Sql Quick Protobuf ProtobufQuick)
 qt_standard_project_setup(REQUIRES 6.8)
+
+
+# --------------------------------------------------------------------------------
+# buildinfo
+
+set(BUILDINFO_VERSION ${CMAKE_PROJECT_VERSION})
+
+string(TIMESTAMP BUILDINFO_DATE "%Y-%m-%d %H:%M:%S")
+
+if (WIN32)
+    set(BUILDINFO_OS "Windows")
+elseif (APPLE)
+    set(BUILDINFO_OS "macOS")
+elseif (UNIX)
+    set(BUILDINFO_OS "Linux")
+else()
+    set(BUILDINFO_OS "Unknown")
+endif()
+
+if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(BUILDINFO_ARCH "x86_64")
+else()
+    set(BUILDINFO_ARCH "x86")
+endif()
+
+set(BUILDINFO_COMPILER "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+
+set(BUILDINFO_QT_VERSION "${Qt6Core_VERSION}")
+
+configure_file(
+    ${CMAKE_SOURCE_DIR}/src/buildinfo.h.in
+    ${CMAKE_BINARY_DIR}/src/buildinfo.h
+    @ONLY
+)
+
+
+# --------------------------------------------------------------------------------
+# executable
 
 qt_add_executable(asdc
     net/bytebuffer.h net/bytebuffer.cpp
@@ -12,19 +57,25 @@ qt_add_executable(asdc
     net/discovery.h net/discovery.cpp
     db/sqlquerymodel.h
 
+    appbuildinfo.h
+
     core.h core.cpp
     main.cpp
 )
+
+
+# --------------------------------------------------------------------------------
+# qml
 
 set_source_files_properties(qml/AppStyle.qml PROPERTIES
     QT_QML_SINGLETON_TYPE TRUE
 )
 
-
 qt_add_qml_module(asdc
     URI src.qml
     VERSION 1.0
     QML_FILES
+        qml/components/AboutDialog.qml
         qml/components/FeatureControls.qml
         qml/components/LoadingDialog.qml
         qml/components/MessageViewer.qml
@@ -43,31 +94,9 @@ qt_add_qml_module(asdc
         qml/Main.qml
 )
 
-# qt_add_qml_module(asdc_qml_components
-#     URI src.qml.components
-#     VERSION 1.0
-#     QML_FILES
-#         qml/components/FeatureControls.qml
-#         qml/components/LoadingDialog.qml
-#         qml/components/MessageViewer.qml
-#         qml/components/SensorReadingsDisplay.qml
-#         qml/components/TemperatureControls.qml
 
-#         # qml/pages/DashboardPage.qml
-#         # qml/pages/MainPage.qml
-#         # qml/pages/MessageViewerPage.qml
-#         # qml/pages/SettingsPage.qml
-#         # qml/pages/SqlBrowserPage.qml
-#         # qml/pages/StartupPage.qml
-#         # qml/pages/ToolsPage.qml
-
-# )
-
-
-# add_subdirectory(qml)
-# add_subdirectory(qml/pages)
-# add_subdirectory(qml/components)
-
+# --------------------------------------------------------------------------------
+# resources
 
 qt_add_resources(assets qml/assets/assets.qrc)
 target_sources(asdc PRIVATE ${assets})
@@ -75,6 +104,10 @@ target_sources(asdc PRIVATE ${assets})
 if(WIN32)
     target_sources(asdc PRIVATE qml/assets/win32.rc)
 endif()
+
+
+# --------------------------------------------------------------------------------
+# protobuf
 
 qt_add_protobuf(asdc_qml_proto
     QML
@@ -101,6 +134,10 @@ qt_add_protobuf(asdc_qml_proto
         proto/Settings.proto
 )
 
+
+# --------------------------------------------------------------------------------
+# target / install
+
 target_link_libraries(asdc PRIVATE
     Qt6::Core
     Qt6::Sql
@@ -109,10 +146,6 @@ target_link_libraries(asdc PRIVATE
     Qt6::ProtobufQuick
 
     asdc_qml_proto
-
-    # asdc_qml
-    # asdc_qml_pages
-    # asdc_qml_components
 )
 
 set_target_properties(asdc PROPERTIES
