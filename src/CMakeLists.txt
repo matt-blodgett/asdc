@@ -81,6 +81,7 @@ qt_add_qml_module(asdc
         qml/components/MessageViewer.qml
         qml/components/SensorReadingsDisplay.qml
         qml/components/TemperatureControls.qml
+        qml/components/TemperatureDial.qml
 
         qml/pages/DashboardPage.qml
         qml/pages/MainPage.qml

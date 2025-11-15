@@ -167,8 +167,8 @@ void CoreInterface::testMode()
     }
 
     m_messageLiveReceivedAt = QDateTime::currentDateTime();
-    m_messageLive.setTemperatureFahrenheit(101);
-    m_messageLive.setTemperatureSetpointFahrenheit(100);
+    m_messageLive.setTemperatureFahrenheit(102);
+    m_messageLive.setTemperatureSetpointFahrenheit(98);
     m_messageLive.setPump1(asdc::proto::Live::PumpStatus(1));
     setMessageLive(m_messageLive, QDateTime::currentDateTime());
     m_databaseClient->logMessageLive(m_messageLive, m_messageLiveReceivedAt);
